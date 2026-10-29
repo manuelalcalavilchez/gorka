@@ -1,0 +1,22 @@
+# Despliegue local o en Easypanel (servicio "App" desde este repositorio con Dockerfile).
+# Las capas NO van en la imagen: se montan desde el disco del servidor.
+services:
+  prefactibilidad:
+    build: .
+    image: tecnologiaalcala/prefactibilidad:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MAX_SUBIDA_MB: "50"
+      ESTUDIOS_TTL_DIAS: "30"
+      MAX_TRABAJOS: "2"
+      PLANOS_CON_FONDO: "1"
+    volumes:
+      # Carpeta con las capas (misma estructura que I:\geodatos\nacional), solo lectura
+      - ${GEODATOS_HOST:-./geodatos}:/data/geodatos:ro
+      # Estudios generados (persistente)
+      - estudios:/data/estudios
+
+volumes:
+  estudios:

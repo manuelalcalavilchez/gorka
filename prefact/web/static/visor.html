@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor de prefactibilidad · Tecnología Alcalá</title>
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="cabecera">
+  <a class="marca" href="/"><b>TECNOLOGÍA ALCALÁ</b><small>tecnologiaalcala.com</small></a>
+  <div class="titulo" id="titulo">Cargando estudio…<small id="subtitulo"></small></div>
+  <div class="acciones">
+    <a class="btn claro" href="/">Nuevo estudio</a>
+    <button class="btn" id="d-pdf" disabled>Descargar PDF</button>
+    <button class="btn claro" id="d-xlsx" disabled>Excel</button>
+    <button class="btn claro" id="d-zip" disabled>ZIP completo</button>
+  </div>
+</header>
+
+<div class="visor">
+  <div id="mapa"></div>
+  <aside class="panel">
+    <nav class="pestanas" id="pestanas">
+      <button data-s="resumen" class="activo">Resumen</button>
+      <button data-s="terreno">Terreno</button>
+      <button data-s="obra">Movimiento</button>
+      <button data-s="afecciones">Afecciones</button>
+      <button data-s="tramitacion">Tramitación</button>
+    </nav>
+    <div class="contenido">
+      <section class="seccion activo" id="s-resumen"></section>
+      <section class="seccion" id="s-terreno"></section>
+      <section class="seccion" id="s-obra"></section>
+      <section class="seccion" id="s-afecciones"></section>
+      <section class="seccion" id="s-tramitacion"></section>
+    </div>
+  </aside>
+</div>
+
+<div class="perfil-cajon" id="perfil">
+  <div class="cab"><span id="perfil-titulo">Perfil del terreno</span><button class="btn sec" id="perfil-cerrar">Cerrar</button></div>
+  <div class="grafico"><canvas id="g-perfil-libre"></canvas></div>
+</div>
+
+<div class="cargando" id="cargando">
+  <div class="caja">
+    <b id="c-titulo">Procesando el estudio</b>
+    <div class="barra"><div id="c-barra"></div></div>
+    <div class="nota" id="c-mensaje">En cola…</div>
+    <div id="c-error"></div>
+  </div>
+</div>
+
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/vendor/chart.umd.js"></script>
+<script src="/static/comun.js"></script>
+<script src="/static/visor.js"></script>
+</body>
+</html>

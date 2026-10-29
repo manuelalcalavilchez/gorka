@@ -1,0 +1,27 @@
+[project]
+name = "prefactibilidad-tierras"
+version = "0.1.0"
+description = "Estudios de prefactibilidad de movimiento de tierras: terreno, volúmenes y condicionantes a partir de cartografía oficial."
+authors = [{ name = "Tecnología Alcalá", email = "arnydivision@gmail.com" }]
+requires-python = ">=3.11"
+readme = "README.md"
+dynamic = ["dependencies"]
+
+[project.urls]
+Homepage = "https://tecnologiaalcala.com"
+
+[project.scripts]
+prefactibilidad = "prefact.web.app:main"
+
+[tool.setuptools]
+packages = ["prefact", "prefact.web"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.package-data]
+"prefact.web" = ["static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:pyogrio.*"]

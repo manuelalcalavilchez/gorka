@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prefactibilidad de movimiento de tierras · Tecnología Alcalá</title>
+<link rel="icon" href="/favicon.ico" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="cabecera">
+  <a class="marca" href="/"><b>TECNOLOGÍA ALCALÁ</b><small>tecnologiaalcala.com</small></a>
+  <div class="titulo">Prefactibilidad de movimiento de tierras<small>Terreno, volúmenes y condicionantes a partir de cartografía oficial</small></div>
+</header>
+
+<main class="contenedor">
+  <form class="tarjeta" id="form" autocomplete="off">
+    <h1>Nuevo estudio</h1>
+    <p class="sub">Sube el ámbito del proyecto, elige el tipo de obra y revisa los resultados en el visor antes de descargar el informe.</p>
+
+    <label class="campo" for="nombre">Nombre del estudio</label>
+    <input type="text" id="nombre" maxlength="120" placeholder="p. ej. Planta solar Los Llanos — fase 1" style="margin-bottom:18px">
+
+    <label class="campo">Tipo de obra</label>
+    <div class="modos" id="modos"></div>
+
+    <label class="campo">Ámbito del proyecto</label>
+    <div class="zona-fichero" id="zona">
+      <input type="file" id="fichero" hidden>
+      <div id="zona-texto"><b>Arrastra aquí el fichero</b> o haz clic para elegirlo<br>
+        <span class="ayuda">KML, KMZ, GeoJSON, GPKG, SHP comprimido en ZIP, GML de Catastro o DXF (ETRS89 UTM)</span></div>
+    </div>
+
+    <label class="campo">Parámetros <span class="ayuda" style="font-weight:400">(puedes ajustarlos después en el visor)</span></label>
+    <div class="rejilla" id="params"></div>
+
+    <div id="error"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:18px">
+      <button class="btn" type="submit" id="enviar">Crear estudio</button>
+    </div>
+  </form>
+
+  <section class="tarjeta">
+    <h2>Capas disponibles en el servidor</h2>
+    <div class="capas-estado" id="capas">Cargando…</div>
+    <p class="nota" style="margin-top:12px">Las capas no instaladas aparecerán en el informe como «sin datos». Ningún resultado sustituye las consultas a los organismos competentes.</p>
+  </section>
+</main>
+
+<script src="/static/comun.js"></script>
+<script>
+let modo = "explanacion";
+let defectos = {};
+let fichero = null;
+
+function pintarModos() {
+  document.getElementById("modos").innerHTML = Object.entries(MODOS).map(([k, m]) =>
+    `<button type="button" class="modo ${k === modo ? "activo" : ""}" data-modo="${k}">
+       <b>${m.nombre}</b><span>${m.desc}<br>Ámbito: ${m.geom}</span></button>`).join("");
+  document.querySelectorAll(".modo").forEach((b) => b.onclick = () => { modo = b.dataset.modo; pintarModos(); pintarParams(); });
+}
+function pintarParams() {
+  document.getElementById("params").innerHTML = camposHTML(modo, {}, defectos[modo] || {});
+}
+function mostrarError(t) { document.getElementById("error").innerHTML = t ? `<div class="error">${esc(t)}</div>` : ""; }
+
+const zona = document.getElementById("zona");
+const input = document.getElementById("fichero");
+zona.onclick = () => input.click();
+input.onchange = () => elegir(input.files[0]);
+["dragenter", "dragover"].forEach((e) => zona.addEventListener(e, (ev) => { ev.preventDefault(); zona.classList.add("encima"); }));
+["dragleave", "drop"].forEach((e) => zona.addEventListener(e, (ev) => { ev.preventDefault(); zona.classList.remove("encima"); }));
+zona.addEventListener("drop", (ev) => elegir(ev.dataTransfer.files[0]));
+function elegir(f) {
+  if (!f) return;
+  fichero = f;
+  document.getElementById("zona-texto").innerHTML = `<b>${esc(f.name)}</b> · ${nf(f.size / 1024, 0)} KB<br><span class="ayuda">Haz clic para cambiarlo</span>`;
+  if (!document.getElementById("nombre").value) document.getElementById("nombre").value = f.name.replace(/\.[^.]+$/, "");
+}
+
+document.getElementById("form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  mostrarError("");
+  if (!fichero) return mostrarError("Elige el fichero del ámbito.");
+  const btn = document.getElementById("enviar");
+  btn.disabled = true; btn.textContent = "Subiendo…";
+  const fd = new FormData();
+  fd.append("fichero", fichero);
+  fd.append("modo", modo);
+  fd.append("nombre", document.getElementById("nombre").value);
+  fd.append("parametros", JSON.stringify(leerCampos(document.getElementById("params"))));
+  try {
+    const r = await api("/api/estudios", { method: "POST", body: fd });
+    location.href = r.url;
+  } catch (e) {
+    mostrarError(e.message);
+    btn.disabled = false; btn.textContent = "Crear estudio";
+  }
+};
+
+(async () => {
+  try {
+    const cfg = await api("/api/config");
+    defectos = cfg.defectos;
+  } catch (_) { /* usa los valores del servidor al calcular */ }
+  pintarModos(); pintarParams();
+  try {
+    const capas = await api("/api/capas");
+    document.getElementById("capas").innerHTML = capas.map((c) =>
+      `<div><span class="punto" style="background:${c.instalada ? "#2E7D32" : "#C9CED6"}"></span>
+       <span>${esc(c.nombre)} <span class="nota">· ${esc(c.tema)}${c.instalada ? "" : " · no instalada"}</span></span></div>`).join("");
+  } catch (e) { document.getElementById("capas").textContent = e.message; }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# Entorno
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+
+# Datos: las capas y los estudios NO se versionan
+geodatos/
+geodatos_prueba/
+estudios/
+*.gpkg
+*.tif
+*.tiff
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.sbn
+*.sbx
+*.zip
+*.npz
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Librerías del visor (las descarga scripts/descargar_vendor.py)
+prefact/web/static/vendor/

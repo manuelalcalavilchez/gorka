@@ -1,0 +1,273 @@
+# Catálogo de capas — Prefactibilidad de movimiento de tierras (Tecnología Alcalá)
+#
+# Rutas relativas a GEODATOS_DIR (en el PC de trabajo: I:\geodatos\nacional).
+# Semáforo: rojo = excluyente o muy restrictivo · ambar = condicionante ·
+#           info = informativo · (verde = sin afección, gris = sin datos: los asigna el motor)
+# Cobertura: códigos de comunidad autónoma de 2 dígitos del IGN
+#   01 Andalucía · 02 Aragón · 03 Asturias · 04 Illes Balears · 05 Canarias · 06 Cantabria
+#   07 Castilla y León · 08 Castilla-La Mancha · 09 Cataluña · 10 C. Valenciana · 11 Extremadura
+#   12 Galicia · 13 Madrid · 14 Murcia · 15 Navarra · 16 País Vasco · 17 La Rioja · 18 Ceuta · 19 Melilla
+
+version: 1
+
+limites:
+  fichero: limites/unidades_administrativas_IGN.gpkg
+  capa: unidades_administrativas
+  campo_codigo: nationalCode
+  campo_nombre: text
+  fuente: IGN — WFS Unidades Administrativas (INSPIRE)
+
+# Modelos digitales del terreno por orden de prioridad. Se usa el primero que cubra el ámbito.
+mdt:
+  - id: mdt02
+    nombre: MDT02 (LiDAR, paso 2 m)
+    patron: "mdt/mdt02/**/*.tif"
+    resolucion_m: 2
+    fuente: CNIG — MDT02
+  - id: mdt05
+    nombre: MDT05 (paso 5 m)
+    patron: "mdt/mdt05/**/*.tif"
+    resolucion_m: 5
+    fuente: CNIG — MDT05
+  - id: mdt25
+    nombre: MDT25 (paso 25 m)
+    patron: "mdt/mdt25/**/*.tif"
+    resolucion_m: 25
+    fuente: CNIG — MDT25
+  - id: mdt1000
+    nombre: MDT nacional 1 km (solo contexto)
+    patron: "mdt/MDT_ESPANA_1000m_EPSG4258.tif"
+    resolucion_m: 1000
+    solo_contexto: true
+    fuente: IGN — API Coverages EL.ElevationGridCoverage_4258_1000
+
+# Resolución máxima del MDT para considerar fiables pendientes y volúmenes (m)
+mdt_resolucion_fiable_m: 25
+
+capas:
+  # ---------------------------------------------------------------- HIDROLOGÍA
+  - id: dph_estimado
+    nombre: Dominio Público Hidráulico estimado
+    tema: Hidrología
+    fuentes:
+      - fichero: hidrologia/DPH_estimado_MITECO.gpkg
+    zonas:
+      - {distancia: 0, etiqueta: "DPH estimado", semaforo: rojo}
+      - {distancia: 5, etiqueta: "Zona de servidumbre (5 m)", semaforo: rojo}
+      - {distancia: 100, etiqueta: "Zona de policía (100 m)", semaforo: ambar}
+    campo_etiqueta: rio
+    cobertura: {excluye: ["05"]}
+    parcial: todas
+    fuente: MITECO — WFS agua:DPH_Estimado
+    fecha: "2026"
+    notas: DPH estimado a partir de estudios del SNCZI; no es un deslinde. Solo cubre parte de los cauces.
+
+  - id: cauces
+    nombre: Cauces (red hidrográfica)
+    tema: Hidrología
+    fuentes:
+      - fichero: hidrologia/red_hidrografica_MITECO_2021.gpkg
+    zonas:
+      - {distancia: 5, etiqueta: "Cauce y servidumbre (5 m desde el eje)", semaforo: rojo}
+      - {distancia: 100, etiqueta: "Zona de policía (100 m desde el eje)", semaforo: ambar}
+    campo_etiqueta: nom_hidro
+    cobertura: {excluye: ["05"]}
+    fuente: MITECO — Red hidrográfica 2021
+    fecha: "2021"
+    notas: Distancias medidas desde el eje del cauce (aproximación; la ley las mide desde el límite del DPH). La red no incluye todos los barrancos y ramblas menores.
+
+  - id: inundable_t100
+    nombre: Zona inundable T100
+    tema: Hidrología
+    fuentes:
+      - fichero: hidrologia/zonas_inundables_T100/Q100_2Ciclo_PB_20241121_ETRS89.shp
+    zonas:
+      - {distancia: 0, etiqueta: "Zona inundable T100", semaforo: ambar}
+    campo_etiqueta: RIO
+    cobertura: {excluye: ["05"]}
+    parcial: todas
+    fuente: MITECO — SNCZI, 2.º ciclo
+    fecha: "2024-11-21"
+    notas: Solo existe en los tramos estudiados por el SNCZI. La ausencia de polígono no significa ausencia de riesgo.
+
+  - id: riesgo_q500
+    nombre: Puntos de riesgo de inundación Q500
+    tema: Hidrología
+    fuentes:
+      - fichero: hidrologia/zonas_riesgo_inundacion_Q500_MITECO_puntos.gpkg
+    zonas:
+      - {distancia: 500, etiqueta: "Punto de riesgo a menos de 500 m", semaforo: info}
+    cobertura: {todas: true}
+    fuente: MITECO — WFS agua:Zif_riesgoinundacion_q500
+    fecha: "2024"
+    notas: Inventario puntual de riesgo; no delimita la superficie inundable.
+
+  # ------------------------------------------------------------- MEDIO NATURAL
+  - id: red_natura
+    nombre: Red Natura 2000
+    tema: Medio natural
+    fuentes:
+      - fichero: medio_natural/red_natura/PS.Natura2000_p_2025.gpkg
+      - fichero: medio_natural/red_natura/PS.RNATURA2000_2024_C.shp
+    zonas:
+      - {distancia: 0, etiqueta: "Dentro de espacio Red Natura 2000", semaforo: ambar}
+      - {distancia: 500, etiqueta: "A menos de 500 m de Red Natura 2000", semaforo: info}
+    campo_etiqueta: text
+    campos_etiqueta_alternativos: [localId, desig0, gml_id]
+    cobertura: {todas: true}
+    fuente: MITECO — Banco de Datos de la Naturaleza
+    fecha: "2025 (península y Baleares) / 2024 (Canarias)"
+    notas: Cualquier proyecto que pueda afectar a la Red Natura requiere evaluación de repercusiones.
+
+  - id: enp
+    nombre: Espacios Naturales Protegidos
+    tema: Medio natural
+    fuentes:
+      - fichero: medio_natural/espacios_protegidos/enp2024_p.shp
+      - fichero: medio_natural/espacios_protegidos/enp2024_c.shp
+    zonas:
+      - {distancia: 0, etiqueta: "Dentro de Espacio Natural Protegido", semaforo: ambar}
+    campo_etiqueta: SITE_NAME
+    cobertura: {todas: true}
+    fuente: MITECO — ENP 2024
+    fecha: "2024"
+    notas: El régimen de usos depende del plan de ordenación (PORN/PRUG) de cada espacio.
+
+  - id: montes_publicos
+    nombre: Montes públicos y de utilidad pública
+    tema: Medio natural
+    fuentes:
+      - fichero: medio_natural/montes_publicos/IEPF_CMUP_pb.gpkg
+      - fichero: medio_natural/montes_publicos/IEPF_CMUP_c.shp
+    zonas:
+      - {distancia: 0, etiqueta: "Dentro de monte público", semaforo: ambar}
+    campo_etiqueta: monte
+    cobertura: {todas: true}
+    fuente: MITECO — IEPF / Catálogo de Montes de Utilidad Pública
+    fecha: "2025"
+    notas: La ocupación de monte de utilidad pública requiere autorización o concesión.
+
+  # ---------------------------------------------------------- INFRAESTRUCTURAS
+  - id: vias_pecuarias
+    nombre: Vías pecuarias
+    tema: Infraestructuras y dominio público
+    fuentes:
+      - fichero: infraestructuras/vias_pecuarias/RGVP_BDN_2024.gpkg
+    zonas:
+      - etiqueta: "Dominio público pecuario (anchura legal estimada según tipo)"
+        semaforo: rojo
+        distancia_por_campo:
+          campo: cd_tipo_vp
+          valores: {CA: 37.5, COR: 18.75, VE: 10, CO: 5, LA: 10, OV: 10}
+          defecto: 10
+      - {distancia: 50, etiqueta: "A menos de 50 m de vía pecuaria", semaforo: info}
+    campo_etiqueta: nb_via
+    cobertura: {todas: true}
+    parcial: ["03", "04", "05", "06", "09", "12", "16"]
+    fuente: MITECO — Red General de Vías Pecuarias (BDN)
+    fecha: "2024"
+    notas: Anchura estimada a partir del tipo (cañada 75 m, cordel 37,5 m, vereda 20 m). La anchura real es la del acto de clasificación. Inventario nacional incompleto en varias comunidades.
+
+  - id: ferrocarril
+    nombre: Ferrocarril
+    tema: Infraestructuras y dominio público
+    fuentes:
+      - fichero: infraestructuras/redes_transporte/ferrocarril_IGR_IGN.gpkg
+    zonas:
+      - {distancia: 8, etiqueta: "Dominio público ferroviario (8 m, aprox. desde el eje)", semaforo: rojo}
+      - {distancia: 70, etiqueta: "Zona de protección ferroviaria (70 m, aprox.)", semaforo: ambar}
+    cobertura: {todas: true}
+    parcial: todas
+    fuente: IGN — WFS Redes de Transporte (RailwayLink)
+    fecha: "2026"
+    notas: Capa incompleta (30.000 de 60.018 tramos). Distancias medidas desde el eje, no desde la arista exterior de la explanación.
+
+  - id: carreteras
+    nombre: Carreteras
+    tema: Infraestructuras y dominio público
+    fuentes:
+      - fichero: infraestructuras/redes_transporte/carreteras.gpkg
+    zonas:
+      - {distancia: 8, etiqueta: "Dominio público viario (aprox.)", semaforo: rojo}
+      - {distancia: 50, etiqueta: "Zona de afección / línea límite de edificación (aprox.)", semaforo: ambar}
+    cobertura: {todas: true}
+    fuente: CNIG — Redes de Transporte
+    fecha: pendiente
+    notas: Capa pendiente de descarga.
+
+  - id: lineas_electricas
+    nombre: Líneas eléctricas
+    tema: Infraestructuras y dominio público
+    fuentes:
+      - fichero: infraestructuras/energia_btn100_2015/BTN100_0702L_LIN_ELEC.shp
+    zonas:
+      - {distancia: 25, etiqueta: "Franja de servidumbre de línea eléctrica (25 m, aprox.)", semaforo: ambar}
+    cobertura: {todas: true}
+    parcial: todas
+    fuente: IGN — BTN100 Tema 7 (2015)
+    fecha: "2015"
+    notas: Escala 1:100.000 y datos de 2015; posición poco precisa. Sustituir por BTN25 cuando esté disponible.
+
+  - id: conducciones
+    nombre: Gasoductos y oleoductos
+    tema: Infraestructuras y dominio público
+    fuentes:
+      - fichero: infraestructuras/energia_btn100_2015/BTN100_0701L_COND_COMB.shp
+    zonas:
+      - {distancia: 10, etiqueta: "Franja de servidumbre de conducción (10 m, aprox.)", semaforo: ambar}
+    cobertura: {todas: true}
+    parcial: todas
+    fuente: IGN — BTN100 Tema 7 (2015)
+    fecha: "2015"
+    notas: Escala 1:100.000 y datos de 2015.
+
+  # ---------------------------------------------------------- RIESGOS / OTROS
+  - id: zonas_sismogenicas
+    nombre: Zonas sismogénicas
+    tema: Geología y riesgos
+    fuentes:
+      - fichero: geologia/zonas_sismogenicas/ZESIS_20150421c.shp
+    zonas:
+      - {distancia: 0, etiqueta: "Zona sismogénica", semaforo: info}
+    campo_etiqueta: nombreZona
+    cobertura: {todas: true}
+    fuente: IGME — ZESIS
+    fecha: "2015"
+
+  - id: incendios
+    nombre: Frecuencia de incendios 1996–2005
+    tema: Geología y riesgos
+    fuentes:
+      - fichero: riesgos/incendios_1996_2005/frec_incend_1996_2005.shp
+    zonas:
+      - {distancia: 0, etiqueta: "Municipio con estadística de incendios", semaforo: info}
+    campo_etiqueta: nombre
+    campos_informe: [incendios, conatos, total]
+    cobertura: {todas: true}
+    fuente: MITECO — Estadística General de Incendios Forestales
+    fecha: "1996–2005"
+    notas: Dato histórico por municipio.
+
+  - id: geologia
+    nombre: Geología (MAGNA 50)
+    tema: Geología y riesgos
+    fuentes:
+      - fichero: geologia/magna50/magna50.gpkg
+    zonas:
+      - {distancia: 0, etiqueta: "Unidad geológica", semaforo: info}
+    cobertura: {todas: true}
+    fuente: IGME — MAGNA 50
+    fecha: pendiente
+    notas: Capa pendiente de descarga.
+
+  - id: habitats
+    nombre: Hábitats de Interés Comunitario
+    tema: Medio natural
+    fuentes:
+      - fichero: medio_natural/habitats_hic/habitats.gpkg
+    zonas:
+      - {distancia: 0, etiqueta: "Presencia de hábitat de interés comunitario", semaforo: ambar}
+    cobertura: {todas: true}
+    fuente: MITECO — Atlas de Hábitats
+    fecha: pendiente
+    notas: Capa pendiente de descarga.
