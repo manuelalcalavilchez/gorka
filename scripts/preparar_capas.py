@@ -50,7 +50,11 @@ def _convertir(origen: Path, destino: Path) -> None:
     """Copia por bloques con pyogrio (no requiere GDAL de línea de comandos)."""
     info = pyogrio.read_info(origen)
     total = info["features"]
-    bloque = 20000
+    # Bloques de ~50 MB según el tamaño medio de cada entidad: evita cargar en memoria
+    # ficheros con polígonos enormes (el SHP de inundables tiene ~350 KB por entidad).
+    tam = origen.stat().st_size + origen.with_suffix(".dbf").stat().st_size if origen.with_suffix(".dbf").exists() \
+        else origen.stat().st_size
+    bloque = int(min(20000, max(20, 50e6 / max(tam / max(total, 1), 1))))
     capa = origen.stem
     escrito = 0
     for ini in range(0, total, bloque):
