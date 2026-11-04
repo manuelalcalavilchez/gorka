@@ -154,6 +154,18 @@ def plano_afecciones(ambito_geom, zonas_utm: list[tuple], crs: str, ruta: Path) 
     _guardar_fig(fig, ruta, fondo, crs)
 
 
+def plano_superficie_util(ambito_geom, libre_geom, crs: str, ruta: Path) -> None:
+    fig, ax, fondo = _nuevo_mapa(_marco(ambito_geom), crs, "Superficie útil del ámbito")
+    color = "#2E7D32"
+    _dibujar_geom(ax, libre_geom, facecolor=color, edgecolor=color, alpha=0.45, linewidth=0.8, zorder=2)
+    borde = "#FFEB3B" if fondo else "#000"
+    _dibujar_geom(ax, ambito_geom, facecolor="none", edgecolor=borde, linewidth=2.2, zorder=5)
+    handles = [Patch(facecolor="none", edgecolor=borde, linewidth=2, label="Ámbito"),
+               Patch(facecolor=color, alpha=0.6, label="Fuera de toda afección")]
+    ax.legend(handles=handles, loc="lower left", fontsize=7, framealpha=0.9)
+    _guardar_fig(fig, ruta, fondo, crs)
+
+
 def plano_raster(ambito_geom, arr, transform, crs, ruta: Path, tipo: str) -> None:
     h, w = arr.shape
     ext = (transform.c, transform.c + w * transform.a, transform.f + h * transform.e, transform.f)

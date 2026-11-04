@@ -5,7 +5,9 @@ import numpy as np
 import pytest
 from affine import Affine
 
-from prefact import ambito, catalogo, estudio, informes, terreno, volumenes
+from shapely.geometry import box
+
+from prefact import afecciones, ambito, catalogo, estudio, informes, terreno, volumenes
 from prefact.terreno import Terreno
 
 
@@ -19,6 +21,28 @@ def _plano(z0=100.0, pendiente=0.0, n=200, res=1.0, ambito_lado=100):
     m[a:b, a:b] = True
     return Terreno(z=z, transform=Affine(res, 0, 0, 0, -res, n * res), crs="EPSG:25830", res=res,
                    fuente={"nombre": "sintético"}, fiable=True, mascara=m)
+
+
+def test_superficie_util_resta_afecciones():
+    parcela = box(0, 0, 100, 100)
+    zonas = [{"capa": "A", "zona": "excluyente", "semaforo": "rojo", "geom": box(0, 0, 10, 100)},
+             {"capa": "B", "zona": "condicionante", "semaforo": "ambar", "geom": box(5, 0, 30, 100)},
+             {"capa": "C", "zona": "corta en dos", "semaforo": "ambar", "geom": box(30, 49, 100, 51)}]
+    u, libre = afecciones.superficie_util(parcela, zonas)
+    assert u["sin_excluyentes_m2"] == pytest.approx(9000)
+    assert u["libre_m2"] == pytest.approx(7000 - 140)  # sin contar dos veces el solape de A y B
+    assert libre.area == pytest.approx(u["libre_m2"])
+    assert u["recintos"] == 2
+    assert u["mayor_recinto_m2"] == pytest.approx(3430)
+    assert u["detalle"][0]["capa"] == "B"
+
+
+def test_superficie_util_sin_afecciones_y_todo_afectado():
+    parcela = box(0, 0, 100, 100)
+    assert afecciones.superficie_util(parcela, [])[0]["libre_pct"] == 100
+    u, libre = afecciones.superficie_util(parcela, [{"capa": "A", "zona": "z", "semaforo": "rojo",
+                                                     "geom": box(-5, -5, 105, 105)}])
+    assert u["libre_m2"] == 0 and u["recintos"] == 0 and libre.is_empty
 
 
 def test_relleno_plano_volumen_exacto():

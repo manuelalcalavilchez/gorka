@@ -91,7 +91,14 @@ def excel(r: dict, ruta: Path) -> None:
              ("Municipio(s)", ", ".join(m["nombre"] for m in r["territorio"].get("municipios", []))),
              ("Fichero del ámbito", a["fichero"]), ("Sistema de referencia", a["crs"]),
              ("Superficie del ámbito (m²)", a["area_m2"]), ("Superficie de obra (m²)", a["area_obra_m2"]),
-             ("Longitud (m)", a["longitud_m"] if a["tipo"] == "linea" else None),
+             ("Longitud (m)", a["longitud_m"] if a["tipo"] == "linea" else None)]
+    u = r.get("superficie_util")
+    if u:
+        filas += [("Superficie útil, fuera de toda afección (m²)", u["libre_m2"]),
+                  ("Superficie útil, fuera de toda afección (%)", u["libre_pct"]),
+                  ("Superficie sin zonas excluyentes (m²)", u["sin_excluyentes_m2"]),
+                  ("Recintos útiles", u["recintos"]), ("Mayor recinto útil (m²)", u["mayor_recinto_m2"])]
+    filas += [
              ("MDT", (r["terreno"]["fuente"] or {}).get("nombre", "Sin MDT")),
              ("MDT fiable para volúmenes", "Sí" if r["terreno"]["fiable"] else "No")]
     filas += [("Aviso", av) for av in r.get("avisos", [])]
@@ -103,6 +110,11 @@ def excel(r: dict, ruta: Path) -> None:
         t = [(k.replace("_", " ").capitalize(), v) for k, v in st.items() if not isinstance(v, list)]
         t += [(f"Pendiente {c['clase']} (%)", c["pct"]) for c in st.get("clases_pendiente", [])]
         hoja("Terreno", t, ["Indicador", "Valor"])
+
+    if u and u["detalle"]:
+        hoja("Superficie útil", [(z["capa"], z["zona"], SEM_TEXTO.get(z["semaforo"]), z["area_m2"], z["pct"])
+                                 for z in u["detalle"]],
+             ["Capa", "Zona que resta", "Clasificación", "Superficie en el ámbito (m²)", "% del ámbito"])
 
     if r.get("volumenes"):
         v = [(k.replace("_", " ").capitalize(), val) for k, val in r["volumenes"].items()]
@@ -160,6 +172,10 @@ def _planos(r: dict, d: Path, dest: Path) -> dict:
             zonas += [(g, x["properties"]["semaforo"], x["properties"]["etiqueta"]) for g, x in zip(gs, feats)]
     render.plano_afecciones(geom_ref, zonas, crs, dest / "plano_afecciones.jpg")
     out["afecciones"] = dest / "plano_afecciones.jpg"
+    if (d / "visor/superficie_util.geojson").exists():
+        libre = gpd.read_file(d / "visor/superficie_util.geojson").to_crs(crs).geometry.iloc[0]
+        render.plano_superficie_util(amb, libre, crs, dest / "plano_superficie_util.jpg")
+        out["superficie_util"] = dest / "plano_superficie_util.jpg"
     if (d / "terreno.npz").exists():
         t = terreno.Terreno.cargar(d / "terreno.npz")
         p = terreno.pendiente_pct(t.z, t.res)
@@ -240,6 +256,7 @@ def pdf(r: dict, ruta: Path, planos: dict) -> None:
     h2 = ParagraphStyle("h2", parent=ss["Heading2"], fontName="DejaVu-Bold", fontSize=10.5, textColor=ACENTO,
                         spaceBefore=8, spaceAfter=4)
     cuerpo = ParagraphStyle("c", parent=ss["Normal"], fontName="DejaVu", fontSize=8.8, leading=12)
+    h3 = ParagraphStyle("h3", parent=h2, fontSize=9.5, spaceBefore=4)
     peq = ParagraphStyle("p", parent=cuerpo, fontSize=7.5, leading=10, textColor=colors.HexColor("#444"))
     celda = ParagraphStyle("cel", parent=cuerpo, fontSize=7.8, leading=9.6)
 
@@ -273,6 +290,10 @@ def pdf(r: dict, ruta: Path, planos: dict) -> None:
                                                  + ", ".join(m["nombre"] for m in r["territorio"].get("municipios", [])[:4]), celda)],
              ["Superficie del ámbito", f"{_n(a['area_m2'])} m²" if a["tipo"] == "poligono" else f"Eje de {_n(a['longitud_m'])} m"],
              ["Superficie de obra (con taludes)", f"{_n(a['area_obra_m2'])} m²"]]
+    u = r.get("superficie_util")
+    if u:
+        datos.append(["Superficie útil (fuera de toda afección)",
+                      f"{_n(u['libre_m2'] / 10000, 2)} ha ({_n(u['libre_pct'], 1)} % del ámbito)"])
     if vol:
         datos += [["Desmonte / terraplén", f"{_n(vol.get('volumen_desmonte_m3'))} / {_n(vol.get('volumen_terraplen_m3'))} m³"],
                   ["Balance (desmonte − terraplén)", f"{_n(vol.get('balance_m3'))} m³"]]
@@ -372,6 +393,32 @@ def pdf(r: dict, ruta: Path, planos: dict) -> None:
     # ---------- 5. afecciones
     s.append(PageBreak())
     s.append(Paragraph("5. Condicionantes y afecciones", h2))
+    if u:
+        s.append(Paragraph("Superficie útil", h3))
+        datos = [["Concepto", "Superficie", "% del ámbito"],
+                 ["Ámbito", f"{_n(u['area_ambito_m2'] / 10000, 2)} ha", "100 %"],
+                 ["Sin zonas excluyentes", f"{_n(u['sin_excluyentes_m2'] / 10000, 2)} ha",
+                  f"{_n(u['sin_excluyentes_pct'], 1)} %"],
+                 ["Fuera de toda afección", f"{_n(u['libre_m2'] / 10000, 2)} ha", f"{_n(u['libre_pct'], 1)} %"],
+                 [f"Mayor recinto útil ({u['recintos']} en total)", f"{_n(u['mayor_recinto_m2'] / 10000, 2)} ha",
+                  f"{_n(100 * u['mayor_recinto_m2'] / u['area_ambito_m2'], 1)} %"]]
+        s.append(_tabla(datos, [84 * mm, 45 * mm, 45 * mm]))
+        s.append(Spacer(1, 3))
+        s.append(Paragraph("Calculada sobre las capas disponibles: resta del ámbito las zonas excluyentes y "
+                           "condicionantes, no las informativas. Una capa sin datos o con cobertura parcial no "
+                           "garantiza que esa superficie esté libre.", peq))
+        if u["detalle"]:
+            s.append(Spacer(1, 4))
+            datos = [["Zona que resta", "Superficie en el ámbito", "% del ámbito"]]
+            datos += [[Paragraph(f"{z['capa']} · {z['zona']}", celda), f"{_n(z['area_m2'])} m²", f"{_n(z['pct'], 1)} %"]
+                      for z in u["detalle"]]
+            s.append(_tabla(datos, [104 * mm, 40 * mm, 30 * mm]))
+            s.append(Paragraph("Las zonas pueden solaparse: sus superficies no se suman.", peq))
+        if "superficie_util" in planos:
+            s.append(Spacer(1, 6))
+            s.append(KeepTogether([_img(planos["superficie_util"])]))
+        s.append(PageBreak())
+        s.append(Paragraph("Detalle por capa", h3))
     datos = [["Capa", "Resultado", "Detalle"]]
     extra = []
     for i, af in enumerate(r["afecciones"], start=1):
@@ -449,6 +496,8 @@ def generar(id_: str) -> dict[str, Path]:
         z.write(d / "ambito.geojson", "geojson/ambito.geojson")
         if (d / "visor/ocupacion.geojson").exists():
             z.write(d / "visor/ocupacion.geojson", "geojson/ocupacion.geojson")
+        if (d / "visor/superficie_util.geojson").exists():
+            z.write(d / "visor/superficie_util.geojson", "geojson/superficie_util.geojson")
         for f in sorted((d / "capas").glob("*.geojson")):
             z.write(f, f"geojson/afecciones/{f.name}")
         z.writestr("resultado.json", json.dumps(r, ensure_ascii=False, indent=1))

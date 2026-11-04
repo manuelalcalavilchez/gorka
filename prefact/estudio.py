@@ -204,13 +204,22 @@ def ejecutar(id_: str, params_nuevos: dict | None = None) -> None:
 
         prog("Cruzando con las capas de condicionantes", 0.55)
         (d / "capas").mkdir(exist_ok=True)
+        zonas_afectan = []
         res_af, geojsons = afe.evaluar(
             geom_afecciones, ccaa, amb.crs, eje=amb.geom if amb.tipo == "linea" else None,
-            progreso=lambda m, f: prog(m, 0.55 + 0.35 * f))
+            progreso=lambda m, f: prog(m, 0.55 + 0.35 * f), zonas_afectan=zonas_afectan)
         for cid, gj in geojsons.items():
             if gj["features"]:
                 _escribir_json(d / "capas" / f"{cid}.geojson", gj)
                 visor["vector"][f"capa:{cid}"] = f"capas/{cid}.geojson"
+
+        util = None
+        (d / "visor/superficie_util.geojson").unlink(missing_ok=True)
+        if amb.tipo == "poligono":
+            util, libre = afe.superficie_util(amb.geom, zonas_afectan)
+            if not libre.is_empty:
+                _guardar_geojson(d / "visor/superficie_util.geojson", libre, amb.crs, {"tipo": "superficie_util"})
+                visor["vector"]["superficie_util"] = "visor/superficie_util.geojson"
 
         prog("Valorando la tramitación", 0.93)
         area = geom_afecciones.area
@@ -235,6 +244,7 @@ def ejecutar(id_: str, params_nuevos: dict | None = None) -> None:
             "volumenes": vol,
             "vial": extra_vial,
             "afecciones": res_af,
+            "superficie_util": util,
             "tramitacion": tram,
             "global": glob,
             "visor": visor,

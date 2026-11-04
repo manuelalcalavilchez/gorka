@@ -35,6 +35,9 @@ def test_flujo_api(ambitos):
     res = _esperar(id_)
     assert res["estado"]["estado"] == "listo"
     v = res["resultado"]["visor"]
+    u = res["resultado"]["superficie_util"]
+    assert 0 < u["libre_m2"] <= u["sin_excluyentes_m2"] <= u["area_ambito_m2"]
+    assert cliente.get(f"/api/estudios/{id_}/fichero/{v['vector']['superficie_util']}").status_code == 200
     assert cliente.get(f"/api/estudios/{id_}/fichero/{v['raster']['corte_relleno']['url']}").status_code == 200
     assert cliente.get(f"/api/estudios/{id_}/fichero/../parametros.json").status_code == 404
     r = cliente.post(f"/api/estudios/{id_}/recalcular", json={"parametros": {"cota": 424}})

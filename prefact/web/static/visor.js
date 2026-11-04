@@ -100,6 +100,10 @@ async function pintarMapa(r) {
     anadir(capa, `<span class="punto" style="background:${(SEM[af.semaforo] || SEM.gris).color}"></span> ${esc(af.nombre)}`,
       af.estado === "afecta");
   }
+  if (v.vector && v.vector.superficie_util) {
+    const gj = await geo(v.vector.superficie_util);
+    if (gj) anadir(L.geoJSON(gj, { style: { color: "#2E7D32", weight: 1.5, fillColor: "#43A047", fillOpacity: .35 } }), "Superficie útil");
+  }
   if (v.vector && v.vector.ocupacion) {
     const gj = await geo(v.vector.ocupacion);
     if (gj) anadir(L.geoJSON(gj, { style: { color: "#FFFFFF", weight: 1.5, dashArray: "6 4", fillOpacity: 0 } }),
@@ -212,6 +216,8 @@ function pintarResumen(r) {
   let h = `<div class="semaforo s-${g.semaforo}"><div class="dot"></div><div><b>${SEM[g.semaforo].txt.toUpperCase()}</b><span>${esc(g.texto)}</span></div></div>`;
   h += `<div class="kpis">`;
   h += a.tipo === "poligono" ? kpi("Superficie del ámbito", `${nf(a.area_m2 / 10000, 2)} ha`) : kpi("Longitud del eje", `${nf(a.longitud_m)} m`);
+  const u = r.superficie_util;
+  if (u) h += kpi("Superficie útil", `${nf(u.libre_m2 / 10000, 2)} ha · ${nf(u.libre_pct, 1)} %`);
   h += kpi("Superficie de obra", `${nf(a.area_obra_m2 / 10000, 2)} ha`);
   if (v.volumen_desmonte_m3 !== undefined) {
     h += kpi("Desmonte", `${nf(v.volumen_desmonte_m3)} m³`) + kpi("Terraplén", `${nf(v.volumen_terraplen_m3)} m³`);
@@ -323,6 +329,17 @@ function pintarAfecciones(r) {
   r.afecciones.forEach((a) => (temas[a.tema] = temas[a.tema] || []).push(a));
   const textoEstado = { afecta: "", sin_afeccion: "", no_instalada: "Capa no instalada", sin_cobertura: "Sin cobertura en la comunidad", error: "Error" };
   let h = "";
+  const u = r.superficie_util;
+  if (u) {
+    h += `<div class="grupo-tema">Superficie útil</div>`;
+    h += filas([
+      ["Ámbito", `${nf(u.area_ambito_m2 / 10000, 2)} ha`],
+      ["Sin zonas excluyentes", `${nf(u.sin_excluyentes_m2 / 10000, 2)} ha · ${nf(u.sin_excluyentes_pct, 1)} %`],
+      ["Fuera de toda afección", `${nf(u.libre_m2 / 10000, 2)} ha · ${nf(u.libre_pct, 1)} %`],
+      [`Mayor recinto (${nf(u.recintos)} en total)`, `${nf(u.mayor_recinto_m2 / 10000, 2)} ha`],
+    ]);
+    h += `<p class="nota">Calculada sobre las capas disponibles. Una capa sin datos o parcial no garantiza que esa superficie esté libre.</p>`;
+  }
   for (const [tema, lista] of Object.entries(temas)) {
     h += `<div class="grupo-tema">${esc(tema)}</div>`;
     for (const a of lista) {

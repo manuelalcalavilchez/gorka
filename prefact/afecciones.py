@@ -7,7 +7,7 @@ import geopandas as gpd
 import pandas as pd
 import pyogrio
 from pyproj import CRS, Transformer
-from shapely.geometry import box, mapping
+from shapely.geometry import MultiPolygon, box, mapping
 from shapely.ops import unary_union
 
 from .catalogo import ORDEN_GRAVEDAD, Capa, catalogo
@@ -16,6 +16,8 @@ log = logging.getLogger(__name__)
 
 RADIO_BUSQUEDA_M = 1500  # proximidad informativa y extensión del visor
 MAX_ELEMENTOS_VISOR = 3000
+SEMAFOROS_RESTAN = ("rojo", "ambar")  # las zonas informativas no restan superficie útil
+AREA_MIN_RECINTO_M2 = 1.0  # por debajo son restos del recorte, no recintos
 
 
 def _peor(semaforos) -> str:
@@ -78,8 +80,12 @@ def _geom_zona(zona, gdf: gpd.GeoDataFrame):
     return unary_union(geoms) if geoms else None
 
 
-def evaluar_capa(capa: Capa, ambito_poligono, ccaa: list[str], crs_utm: str, eje=None) -> tuple[dict, dict]:
-    """Devuelve (resultado, geojson para el visor) de una capa."""
+def evaluar_capa(capa: Capa, ambito_poligono, ccaa: list[str], crs_utm: str, eje=None,
+                 zonas_afectan: list[dict] | None = None) -> tuple[dict, dict]:
+    """Devuelve (resultado, geojson para el visor) de una capa.
+
+    Si se pasa `zonas_afectan`, añade las zonas excluyentes o condicionantes que tocan el ámbito.
+    """
     base = {"id": capa.id, "nombre": capa.nombre, "tema": capa.tema, "fuente": capa.fuente,
             "fecha": capa.fecha, "notas": capa.notas, "zonas": [], "elementos": [], "avisos": [],
             "distancia_min_m": None, "cobertura_parcial": capa.es_parcial(ccaa), "valores": []}
@@ -113,6 +119,9 @@ def evaluar_capa(capa: Capa, ambito_poligono, ccaa: list[str], crs_utm: str, eje
             fila["longitud_eje_m"] = round(eje.intersection(gz).length, 1)
         if afecta:
             sems.append(zona.semaforo)
+            if zonas_afectan is not None and zona.semaforo in SEMAFOROS_RESTAN:
+                zonas_afectan.append({"capa": capa.nombre, "zona": zona.etiqueta, "semaforo": zona.semaforo,
+                                      "geom": inter})
             dentro = gdf[gdf.geometry.buffer(zona.distancia_max + 0.01).intersects(ambito_poligono)]
             fila["elementos"] = _etiquetas(capa, dentro)
         resultado_zonas.append(fila)
@@ -166,7 +175,39 @@ def _a_wgs84(feats: list[dict], crs_utm: str) -> dict:
     return {"type": "FeatureCollection", "features": out}
 
 
-def evaluar(ambito_poligono, ccaa: list[str], crs_utm: str, eje=None, progreso=None) -> tuple[list[dict], dict]:
+def _recintos(geom) -> list:
+    partes = getattr(geom, "geoms", [geom])
+    return [g for g in partes if g.geom_type == "Polygon" and g.area >= AREA_MIN_RECINTO_M2]
+
+
+def superficie_util(ambito_poligono, zonas: list[dict]) -> tuple[dict, object]:
+    """Superficie del ámbito que queda fuera de las afecciones. Devuelve (resumen, geometría libre)."""
+    area = ambito_poligono.area or 1.0
+
+    def restar(semaforos):
+        geoms = [z["geom"] for z in zonas if z["semaforo"] in semaforos]
+        return ambito_poligono.difference(unary_union(geoms)) if geoms else ambito_poligono
+
+    recintos = _recintos(restar(SEMAFOROS_RESTAN))
+    libre = MultiPolygon(recintos)
+    sin_excluyentes = sum(g.area for g in _recintos(restar(("rojo",))))
+    detalle = []
+    for z in zonas:
+        a = z["geom"].intersection(ambito_poligono).area
+        if a >= AREA_MIN_RECINTO_M2:
+            detalle.append({"capa": z["capa"], "zona": z["zona"], "semaforo": z["semaforo"],
+                            "area_m2": round(a, 1), "pct": round(100 * a / area, 2)})
+    detalle.sort(key=lambda x: -x["area_m2"])
+    return {"area_ambito_m2": round(ambito_poligono.area, 1),
+            "libre_m2": round(libre.area, 1), "libre_pct": round(100 * libre.area / area, 2),
+            "sin_excluyentes_m2": round(sin_excluyentes, 1),
+            "sin_excluyentes_pct": round(100 * sin_excluyentes / area, 2),
+            "recintos": len(recintos), "mayor_recinto_m2": round(max((g.area for g in recintos), default=0.0), 1),
+            "detalle": detalle}, libre
+
+
+def evaluar(ambito_poligono, ccaa: list[str], crs_utm: str, eje=None, progreso=None,
+            zonas_afectan: list[dict] | None = None) -> tuple[list[dict], dict]:
     cat = catalogo()
     resultados, geojsons = [], {}
     n = len(cat.capas)
@@ -174,7 +215,7 @@ def evaluar(ambito_poligono, ccaa: list[str], crs_utm: str, eje=None, progreso=N
         if progreso:
             progreso(f"Cruzando {capa.nombre}", i / max(n, 1))
         try:
-            r, gj = evaluar_capa(capa, ambito_poligono, ccaa, crs_utm, eje=eje)
+            r, gj = evaluar_capa(capa, ambito_poligono, ccaa, crs_utm, eje=eje, zonas_afectan=zonas_afectan)
         except Exception as e:  # noqa: BLE001
             log.exception("Error en capa %s", capa.id)
             r = {"id": capa.id, "nombre": capa.nombre, "tema": capa.tema, "estado": "error", "semaforo": "gris",
