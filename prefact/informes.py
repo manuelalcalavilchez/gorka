@@ -94,9 +94,8 @@ def excel(r: dict, ruta: Path) -> None:
              ("Longitud (m)", a["longitud_m"] if a["tipo"] == "linea" else None)]
     u = r.get("superficie_util")
     if u:
-        filas += [("Superficie útil, fuera de toda afección (m²)", u["libre_m2"]),
-                  ("Superficie útil, fuera de toda afección (%)", u["libre_pct"]),
-                  ("Superficie sin zonas excluyentes (m²)", u["sin_excluyentes_m2"]),
+        filas += [("Superficie útil (m²)", u["libre_m2"]), ("Superficie útil (%)", u["libre_pct"]),
+                  ("Retranqueo a linderos (m)", u["retranqueo_m"]),
                   ("Recintos útiles", u["recintos"]), ("Mayor recinto útil (m²)", u["mayor_recinto_m2"])]
     filas += [
              ("MDT", (r["terreno"]["fuente"] or {}).get("nombre", "Sin MDT")),
@@ -112,9 +111,11 @@ def excel(r: dict, ruta: Path) -> None:
         hoja("Terreno", t, ["Indicador", "Valor"])
 
     if u and u["detalle"]:
-        hoja("Superficie útil", [(z["capa"], z["zona"], SEM_TEXTO.get(z["semaforo"]), z["area_m2"], z["pct"])
-                                 for z in u["detalle"]],
-             ["Capa", "Zona que resta", "Clasificación", "Superficie en el ámbito (m²)", "% del ámbito"])
+        hoja("Superficie útil", [(z["capa"], z["zona"], z["area_m2"], z["pct"]) for z in u["detalle"]],
+             ["Capa", "Criterio que resta", "Superficie en el ámbito (m²)", "% del ámbito"])
+    if u and u.get("pendientes"):
+        hoja("Criterios sin comprobar", [(c["criterio"], c["valor"]) for c in u["pendientes"]],
+             ["Criterio sin capa disponible", "Distancia"])
 
     if r.get("volumenes"):
         v = [(k.replace("_", " ").capitalize(), val) for k, val in r["volumenes"].items()]
@@ -292,7 +293,7 @@ def pdf(r: dict, ruta: Path, planos: dict) -> None:
              ["Superficie de obra (con taludes)", f"{_n(a['area_obra_m2'])} m²"]]
     u = r.get("superficie_util")
     if u:
-        datos.append(["Superficie útil (fuera de toda afección)",
+        datos.append(["Superficie útil",
                       f"{_n(u['libre_m2'] / 10000, 2)} ha ({_n(u['libre_pct'], 1)} % del ámbito)"])
     if vol:
         datos += [["Desmonte / terraplén", f"{_n(vol.get('volumen_desmonte_m3'))} / {_n(vol.get('volumen_terraplen_m3'))} m³"],
@@ -397,23 +398,29 @@ def pdf(r: dict, ruta: Path, planos: dict) -> None:
         s.append(Paragraph("Superficie útil", h3))
         datos = [["Concepto", "Superficie", "% del ámbito"],
                  ["Ámbito", f"{_n(u['area_ambito_m2'] / 10000, 2)} ha", "100 %"],
-                 ["Sin zonas excluyentes", f"{_n(u['sin_excluyentes_m2'] / 10000, 2)} ha",
-                  f"{_n(u['sin_excluyentes_pct'], 1)} %"],
-                 ["Fuera de toda afección", f"{_n(u['libre_m2'] / 10000, 2)} ha", f"{_n(u['libre_pct'], 1)} %"],
+                 [f"Tras retranqueo de {_n(u['retranqueo_m'])} m", f"{_n(u['tras_retranqueo_m2'] / 10000, 2)} ha",
+                  f"{_n(u['tras_retranqueo_pct'], 1)} %"],
+                 ["Superficie útil", f"{_n(u['libre_m2'] / 10000, 2)} ha", f"{_n(u['libre_pct'], 1)} %"],
                  [f"Mayor recinto útil ({u['recintos']} en total)", f"{_n(u['mayor_recinto_m2'] / 10000, 2)} ha",
                   f"{_n(100 * u['mayor_recinto_m2'] / u['area_ambito_m2'], 1)} %"]]
         s.append(_tabla(datos, [84 * mm, 45 * mm, 45 * mm]))
         s.append(Spacer(1, 3))
-        s.append(Paragraph("Calculada sobre las capas disponibles: resta del ámbito las zonas excluyentes y "
-                           "condicionantes, no las informativas. Una capa sin datos o con cobertura parcial no "
+        s.append(Paragraph("Calculada con criterios generales de implantación sobre las capas disponibles, salvo que "
+                           "la normativa aplicable indique otra cosa. Una capa sin datos o con cobertura parcial no "
                            "garantiza que esa superficie esté libre.", peq))
         if u["detalle"]:
             s.append(Spacer(1, 4))
-            datos = [["Zona que resta", "Superficie en el ámbito", "% del ámbito"]]
-            datos += [[Paragraph(f"{z['capa']} · {z['zona']}", celda), f"{_n(z['area_m2'])} m²", f"{_n(z['pct'], 1)} %"]
-                      for z in u["detalle"]]
+            datos = [["Criterio que resta", "Superficie en el ámbito", "% del ámbito"]]
+            datos += [[Paragraph(f"{z['capa']} · {z['zona']}", celda),
+                       f"{_n(z['area_m2'])} m²", f"{_n(z['pct'], 1)} %"] for z in u["detalle"]]
             s.append(_tabla(datos, [104 * mm, 40 * mm, 30 * mm]))
             s.append(Paragraph("Las zonas pueden solaparse: sus superficies no se suman.", peq))
+        if u.get("pendientes"):
+            s.append(Spacer(1, 4))
+            datos = [["Criterio sin comprobar (sin capa disponible)", "Distancia"]]
+            datos += [[c["criterio"], Paragraph(c["valor"], celda)] for c in u["pendientes"]]
+            s.append(_tabla(datos, [84 * mm, 90 * mm]))
+            s.append(Paragraph("Estos criterios no se han restado: la superficie útil real puede ser menor.", peq))
         if "superficie_util" in planos:
             s.append(Spacer(1, 6))
             s.append(KeepTogether([_img(planos["superficie_util"])]))

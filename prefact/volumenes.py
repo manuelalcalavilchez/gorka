@@ -19,11 +19,11 @@ MODOS = ("explanacion", "relleno", "extraccion", "vial")
 
 DEFECTOS = {
     "explanacion": {"cota": None, "talud_desmonte": 1.5, "talud_terraplen": 2.0, "pendiente_pct": 0.0,
-                    "azimut": 180.0, "esponjamiento": 1.25, "capacidad_camion_m3": 15.0},
+                    "azimut": 180.0, "esponjamiento": 1.25, "capacidad_camion_m3": 15.0, "retranqueo_m": 10.0},
     "relleno": {"cota": None, "volumen_objetivo": None, "talud_terraplen": 2.0, "esponjamiento": 1.25,
-                "capacidad_camion_m3": 15.0},
+                "capacidad_camion_m3": 15.0, "retranqueo_m": 10.0},
     "extraccion": {"cota_fondo": None, "profundidad": 10.0, "talud_interior": 1.0, "esponjamiento": 1.25,
-                   "capacidad_camion_m3": 15.0},
+                   "capacidad_camion_m3": 15.0, "retranqueo_m": 10.0},
     "vial": {"ancho": 6.0, "pendiente_max_pct": 10.0, "talud_desmonte": 1.0, "talud_terraplen": 1.5,
              "paso": None, "suavizado_m": 60.0, "esponjamiento": 1.25, "capacidad_camion_m3": 15.0},
 }
@@ -52,6 +52,8 @@ def normalizar_parametros(modo: str, params: dict | None) -> dict:
             raise ParametrosError(f"«{k}» debe estar entre 0,1 y 10 (H:V).")
     if p.get("esponjamiento") is not None and not (1.0 <= p["esponjamiento"] <= 2.0):
         raise ParametrosError("El esponjamiento debe estar entre 1,0 y 2,0.")
+    if p.get("retranqueo_m") is not None and not (0 <= p["retranqueo_m"] <= 500):
+        raise ParametrosError("El retranqueo debe estar entre 0 y 500 m.")
     if modo == "vial":
         if not (2 <= p["ancho"] <= 60):
             raise ParametrosError("El ancho de la plataforma debe estar entre 2 y 60 m.")

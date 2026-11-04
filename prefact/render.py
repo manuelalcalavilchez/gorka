@@ -161,7 +161,7 @@ def plano_superficie_util(ambito_geom, libre_geom, crs: str, ruta: Path) -> None
     borde = "#FFEB3B" if fondo else "#000"
     _dibujar_geom(ax, ambito_geom, facecolor="none", edgecolor=borde, linewidth=2.2, zorder=5)
     handles = [Patch(facecolor="none", edgecolor=borde, linewidth=2, label="Ámbito"),
-               Patch(facecolor=color, alpha=0.6, label="Fuera de toda afección")]
+               Patch(facecolor=color, alpha=0.6, label="Superficie útil")]
     ax.legend(handles=handles, loc="lower left", fontsize=7, framealpha=0.9)
     _guardar_fig(fig, ruta, fondo, crs)
 

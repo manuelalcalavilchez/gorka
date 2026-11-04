@@ -25,11 +25,10 @@ def _plano(z0=100.0, pendiente=0.0, n=200, res=1.0, ambito_lado=100):
 
 def test_superficie_util_resta_afecciones():
     parcela = box(0, 0, 100, 100)
-    zonas = [{"capa": "A", "zona": "excluyente", "semaforo": "rojo", "geom": box(0, 0, 10, 100)},
-             {"capa": "B", "zona": "condicionante", "semaforo": "ambar", "geom": box(5, 0, 30, 100)},
-             {"capa": "C", "zona": "corta en dos", "semaforo": "ambar", "geom": box(30, 49, 100, 51)}]
+    zonas = [{"capa": "A", "zona": "a", "geom": box(0, 0, 10, 100)},
+             {"capa": "B", "zona": "b", "geom": box(5, 0, 30, 100)},
+             {"capa": "C", "zona": "corta en dos", "geom": box(30, 49, 100, 51)}]
     u, libre = afecciones.superficie_util(parcela, zonas)
-    assert u["sin_excluyentes_m2"] == pytest.approx(9000)
     assert u["libre_m2"] == pytest.approx(7000 - 140)  # sin contar dos veces el solape de A y B
     assert libre.area == pytest.approx(u["libre_m2"])
     assert u["recintos"] == 2
@@ -40,9 +39,30 @@ def test_superficie_util_resta_afecciones():
 def test_superficie_util_sin_afecciones_y_todo_afectado():
     parcela = box(0, 0, 100, 100)
     assert afecciones.superficie_util(parcela, [])[0]["libre_pct"] == 100
-    u, libre = afecciones.superficie_util(parcela, [{"capa": "A", "zona": "z", "semaforo": "rojo",
-                                                     "geom": box(-5, -5, 105, 105)}])
+    u, libre = afecciones.superficie_util(parcela, [{"capa": "A", "zona": "z", "geom": box(-5, -5, 105, 105)}])
     assert u["libre_m2"] == 0 and u["recintos"] == 0 and libre.is_empty
+
+
+def test_retranqueo_recorta_desde_linderos():
+    u, _ = afecciones.superficie_util(box(0, 0, 100, 100), [{"capa": "A", "zona": "z", "geom": box(0, 0, 30, 100)}],
+                                      retranqueo=10)
+    assert u["tras_retranqueo_m2"] == pytest.approx(6400)
+    assert u["libre_m2"] == pytest.approx(60 * 80)  # el solape con el retranqueo no se cuenta dos veces
+
+
+def test_criterios_implantacion_coherentes():
+    ids = {c.id for c in catalogo.catalogo().capas}
+    crit = catalogo.implantacion()
+    assert set(crit["capas"]) <= ids and crit["capas"]["cauces"]["distancia"] == 20
+
+
+def test_criterios_pendientes_por_comunidad():
+    def valores(ccaa):
+        return {c["criterio"]: c["valor"] for c in afecciones.criterios_pendientes(ccaa)}
+    assert valores(["11"])["Núcleos de población"] == "2 km"
+    assert valores(["07"])["Bienes de Interés Cultural"] == "500 m"
+    assert "Bienes de Interés Cultural" not in valores(["01"])
+    assert valores(["14"])["Núcleos de población"] == "Sin valor para esta comunidad"
 
 
 def test_relleno_plano_volumen_exacto():

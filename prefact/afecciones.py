@@ -10,13 +10,13 @@ from pyproj import CRS, Transformer
 from shapely.geometry import MultiPolygon, box, mapping
 from shapely.ops import unary_union
 
-from .catalogo import ORDEN_GRAVEDAD, Capa, catalogo
+from .catalogo import ORDEN_GRAVEDAD, Capa, Zona, catalogo, implantacion
 
 log = logging.getLogger(__name__)
 
 RADIO_BUSQUEDA_M = 1500  # proximidad informativa y extensión del visor
 MAX_ELEMENTOS_VISOR = 3000
-SEMAFOROS_RESTAN = ("rojo", "ambar")  # las zonas informativas no restan superficie útil
+SEMAFOROS_RESTAN = ("rojo", "ambar")  # capas sin criterio de implantación: lo informativo no resta
 AREA_MIN_RECINTO_M2 = 1.0  # por debajo son restos del recorte, no recintos
 
 
@@ -80,11 +80,21 @@ def _geom_zona(zona, gdf: gpd.GeoDataFrame):
     return unary_union(geoms) if geoms else None
 
 
+def _geom_implantacion(capa: Capa, gdf: gpd.GeoDataFrame, cfg: dict):
+    d = float(cfg.get("distancia", 0))
+    if cfg.get("sobre_zona"):
+        base = _geom_zona(capa.zonas[0], gdf)
+        return base.buffer(d) if base is not None else None
+    if d > 0:
+        return unary_union(list(gdf.geometry.buffer(d)))
+    return _geom_zona(Zona(etiqueta="", semaforo="rojo"), gdf)
+
+
 def evaluar_capa(capa: Capa, ambito_poligono, ccaa: list[str], crs_utm: str, eje=None,
                  zonas_afectan: list[dict] | None = None) -> tuple[dict, dict]:
     """Devuelve (resultado, geojson para el visor) de una capa.
 
-    Si se pasa `zonas_afectan`, añade las zonas excluyentes o condicionantes que tocan el ámbito.
+    Si se pasa `zonas_afectan`, añade lo que esta capa resta de la superficie útil.
     """
     base = {"id": capa.id, "nombre": capa.nombre, "tema": capa.tema, "fuente": capa.fuente,
             "fecha": capa.fecha, "notas": capa.notas, "zonas": [], "elementos": [], "avisos": [],
@@ -103,6 +113,13 @@ def evaluar_capa(capa: Capa, ambito_poligono, ccaa: list[str], crs_utm: str, eje
         estado = "sin_afeccion"
         return {**base, "estado": estado, "semaforo": "verde"}, vacio
 
+    criterio = implantacion()["capas"].get(capa.id)
+    if zonas_afectan is not None and criterio is not None:
+        g = _geom_implantacion(capa, gdf, criterio)
+        inter = g.intersection(ambito_poligono) if g is not None else None
+        if inter is not None and inter.area > 0.5:
+            zonas_afectan.append({"capa": capa.nombre, "zona": criterio["etiqueta"], "geom": inter})
+
     resultado_zonas, sems = [], []
     geo_feats = []
     area_ambito = ambito_poligono.area or 1.0
@@ -119,9 +136,8 @@ def evaluar_capa(capa: Capa, ambito_poligono, ccaa: list[str], crs_utm: str, eje
             fila["longitud_eje_m"] = round(eje.intersection(gz).length, 1)
         if afecta:
             sems.append(zona.semaforo)
-            if zonas_afectan is not None and zona.semaforo in SEMAFOROS_RESTAN:
-                zonas_afectan.append({"capa": capa.nombre, "zona": zona.etiqueta, "semaforo": zona.semaforo,
-                                      "geom": inter})
+            if zonas_afectan is not None and criterio is None and zona.semaforo in SEMAFOROS_RESTAN:
+                zonas_afectan.append({"capa": capa.nombre, "zona": zona.etiqueta, "geom": inter})
             dentro = gdf[gdf.geometry.buffer(zona.distancia_max + 0.01).intersects(ambito_poligono)]
             fila["elementos"] = _etiquetas(capa, dentro)
         resultado_zonas.append(fila)
@@ -180,30 +196,45 @@ def _recintos(geom) -> list:
     return [g for g in partes if g.geom_type == "Polygon" and g.area >= AREA_MIN_RECINTO_M2]
 
 
-def superficie_util(ambito_poligono, zonas: list[dict]) -> tuple[dict, object]:
-    """Superficie del ámbito que queda fuera de las afecciones. Devuelve (resumen, geometría libre)."""
+def superficie_util(ambito_poligono, zonas: list[dict], retranqueo: float = 0.0) -> tuple[dict, object]:
+    """Superficie del ámbito tras el retranqueo y las afecciones. Devuelve (resumen, geometría libre)."""
     area = ambito_poligono.area or 1.0
-
-    def restar(semaforos):
-        geoms = [z["geom"] for z in zonas if z["semaforo"] in semaforos]
-        return ambito_poligono.difference(unary_union(geoms)) if geoms else ambito_poligono
-
-    recintos = _recintos(restar(SEMAFOROS_RESTAN))
+    interior = ambito_poligono.buffer(-retranqueo, join_style=2) if retranqueo > 0 else ambito_poligono
+    geoms = [z["geom"] for z in zonas]
+    recintos = _recintos(interior.difference(unary_union(geoms)) if geoms else interior)
     libre = MultiPolygon(recintos)
-    sin_excluyentes = sum(g.area for g in _recintos(restar(("rojo",))))
     detalle = []
     for z in zonas:
         a = z["geom"].intersection(ambito_poligono).area
         if a >= AREA_MIN_RECINTO_M2:
-            detalle.append({"capa": z["capa"], "zona": z["zona"], "semaforo": z["semaforo"],
-                            "area_m2": round(a, 1), "pct": round(100 * a / area, 2)})
+            detalle.append({"capa": z["capa"], "zona": z["zona"], "area_m2": round(a, 1),
+                            "pct": round(100 * a / area, 2)})
+    if retranqueo > 0:
+        a = ambito_poligono.area - interior.area
+        detalle.append({"capa": "Retranqueo", "zona": f"{retranqueo:g} m desde los linderos", "area_m2": round(a, 1),
+                        "pct": round(100 * a / area, 2)})
     detalle.sort(key=lambda x: -x["area_m2"])
-    return {"area_ambito_m2": round(ambito_poligono.area, 1),
+    return {"area_ambito_m2": round(ambito_poligono.area, 1), "retranqueo_m": retranqueo,
+            "tras_retranqueo_m2": round(interior.area, 1), "tras_retranqueo_pct": round(100 * interior.area / area, 2),
             "libre_m2": round(libre.area, 1), "libre_pct": round(100 * libre.area / area, 2),
-            "sin_excluyentes_m2": round(sin_excluyentes, 1),
-            "sin_excluyentes_pct": round(100 * sin_excluyentes / area, 2),
             "recintos": len(recintos), "mayor_recinto_m2": round(max((g.area for g in recintos), default=0.0), 1),
             "detalle": detalle}, libre
+
+
+def criterios_pendientes(ccaa: list[str]) -> list[dict]:
+    """Criterios de implantación sin capa instalada que aplican en estas comunidades."""
+    out = []
+    for c in implantacion()["sin_capa"]:
+        por = c.get("por_ccaa")
+        if not por:
+            out.append({"criterio": c["criterio"], "valor": c["valor"]})
+            continue
+        valores = list(dict.fromkeys(por[x] for x in ccaa if x in por))
+        if valores:
+            out.append({"criterio": c["criterio"], "valor": " / ".join(valores)})
+        elif not c.get("solo_ccaa"):
+            out.append({"criterio": c["criterio"], "valor": "Sin valor para esta comunidad"})
+    return out
 
 
 def evaluar(ambito_poligono, ccaa: list[str], crs_utm: str, eje=None, progreso=None,

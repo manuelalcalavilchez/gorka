@@ -15,18 +15,21 @@ const CAMPOS = {
     ["pendiente_pct", "Pendiente de plataforma (%)", "0 = horizontal", 0.1],
     ["azimut", "Sentido de bajada (°)", "0 norte · 90 este · 180 sur", 1],
     ["esponjamiento", "Esponjamiento", "Para el excedente a transportar", 0.05],
+    ["retranqueo_m", "Retranqueo a linderos (m)", "Se resta de la superficie útil. 10 m si la normativa no indica otra cosa", 1],
   ],
   relleno: [
     ["cota", "Cota final (m)", "Vacío = punto más alto del ámbito", 0.1],
     ["volumen_objetivo", "Volumen a depositar (m³)", "Si se indica, calcula la cota final", 100],
     ["talud_terraplen", "Talud exterior (H:V)", "", 0.1],
     ["esponjamiento", "Esponjamiento", "", 0.05],
+    ["retranqueo_m", "Retranqueo a linderos (m)", "Se resta de la superficie útil. 10 m si la normativa no indica otra cosa", 1],
   ],
   extraccion: [
     ["cota_fondo", "Cota de fondo (m)", "Si se indica, sustituye a la profundidad", 0.1],
     ["profundidad", "Profundidad bajo la cota media (m)", "", 0.5],
     ["talud_interior", "Talud del hueco (H:V)", "", 0.1],
     ["esponjamiento", "Esponjamiento", "", 0.05],
+    ["retranqueo_m", "Retranqueo a linderos (m)", "Se resta de la superficie útil. 10 m si la normativa no indica otra cosa", 1],
   ],
   vial: [
     ["ancho", "Ancho de plataforma (m)", "", 0.5],

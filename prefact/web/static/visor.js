@@ -334,11 +334,12 @@ function pintarAfecciones(r) {
     h += `<div class="grupo-tema">Superficie útil</div>`;
     h += filas([
       ["Ámbito", `${nf(u.area_ambito_m2 / 10000, 2)} ha`],
-      ["Sin zonas excluyentes", `${nf(u.sin_excluyentes_m2 / 10000, 2)} ha · ${nf(u.sin_excluyentes_pct, 1)} %`],
-      ["Fuera de toda afección", `${nf(u.libre_m2 / 10000, 2)} ha · ${nf(u.libre_pct, 1)} %`],
+      [`Tras retranqueo de ${nf(u.retranqueo_m)} m`, `${nf(u.tras_retranqueo_m2 / 10000, 2)} ha · ${nf(u.tras_retranqueo_pct, 1)} %`],
+      ["Superficie útil", `${nf(u.libre_m2 / 10000, 2)} ha · ${nf(u.libre_pct, 1)} %`],
       [`Mayor recinto (${nf(u.recintos)} en total)`, `${nf(u.mayor_recinto_m2 / 10000, 2)} ha`],
     ]);
-    h += `<p class="nota">Calculada sobre las capas disponibles. Una capa sin datos o parcial no garantiza que esa superficie esté libre.</p>`;
+    h += `<p class="nota">Calculada con criterios generales de implantación sobre las capas disponibles, salvo que la normativa aplicable indique otra cosa.</p>`;
+    if ((u.pendientes || []).length) h += `<div class="aviso">Sin comprobar, no restado (la superficie real puede ser menor): ${u.pendientes.map((c) => `${esc(c.criterio)} (${esc(c.valor)})`).join("; ")}.</div>`;
   }
   for (const [tema, lista] of Object.entries(temas)) {
     h += `<div class="grupo-tema">${esc(tema)}</div>`;

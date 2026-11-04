@@ -1,0 +1,39 @@
+# Criterios de implantación para la superficie útil.
+#
+# capas: distancia que se resta alrededor de cada capa del catálogo (clave = id en capas.yaml).
+#   Sustituyen a las zonas del semáforo solo para la superficie útil; el semáforo y la tramitación no cambian.
+#   distancia 0 = se excluye solo el interior de la capa.
+#   sobre_zona: la distancia se suma a la primera zona de la capa (p. ej. la anchura legal de la vía pecuaria).
+# sin_capa: criterios sin capa instalada. No se restan: el informe los lista como no comprobados.
+#   por_ccaa: valor por comunidad (códigos IGN). solo_ccaa: no se muestra en el resto de comunidades.
+
+version: 1
+
+capas:
+  dph_estimado: {distancia: 20, etiqueta: "Hidrografía: 20 m desde el DPH estimado"}
+  cauces: {distancia: 20, etiqueta: "Hidrografía: 20 m desde el cauce"}
+  inundable_t100: {distancia: 0, etiqueta: "Zona inundable: descartada, sin servidumbre"}
+  red_natura: {distancia: 0, etiqueta: "Ambiental: dentro del espacio (valorar cada caso)"}
+  enp: {distancia: 0, etiqueta: "Ambiental: dentro del espacio (valorar cada caso)"}
+  montes_publicos: {distancia: 500, etiqueta: "Monte de utilidad pública: 500 m"}
+  vias_pecuarias: {distancia: 5, sobre_zona: true, etiqueta: "Vía pecuaria: 5 m desde la anchura legal estimada"}
+  ferrocarril: {distancia: 50, etiqueta: "Ferrocarril: 50 m"}
+  lineas_electricas: {distancia: 15, etiqueta: "Línea eléctrica: mínimo 15 m (puede ser más según tensión y vano)"}
+  conducciones: {distancia: 10, etiqueta: "Gasoducto u oleoducto: 10 m"}
+
+sin_capa:
+  - {criterio: "Núcleos de población", por_ccaa: {"01": "1,5 km", "07": "1 km", "08": "1,5 km", "11": "2 km"}}
+  - {criterio: "Viviendas aisladas", valor: "200 m, si la normativa no dice lo contrario"}
+  - {criterio: "Construcciones", valor: "10 m"}
+  - {criterio: "Granjas", valor: "500 m"}
+  - {criterio: "Autovías y autopistas", valor: "50 m, si la normativa no dice lo contrario"}
+  - {criterio: "Carreteras", valor: "25 m, si la normativa no dice lo contrario"}
+  - {criterio: "Caminos", valor: "10 m, si la normativa no dice lo contrario"}
+  - {criterio: "Masas de agua", valor: "10 m"}
+  - {criterio: "Vegetación", valor: "5 m"}
+  - {criterio: "Yacimientos arqueológicos", valor: "50 m, salvo que la normativa indique otra cosa"}
+  - {criterio: "Bienes de Interés Cultural", solo_ccaa: true, por_ccaa: {"07": "500 m"}}
+  - {criterio: "Peligrosidad sísmica", solo_ccaa: true, por_ccaa: {"07": "Excluir, sin servidumbre"}}
+  - {criterio: "Camino de Santiago", valor: "200 m"}
+  - {criterio: "Líneas de teléfono", valor: "10 m"}
+  - {criterio: "Redes geodésicas", valor: "10 m, igual que construcciones"}

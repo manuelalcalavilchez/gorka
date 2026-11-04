@@ -216,7 +216,8 @@ def ejecutar(id_: str, params_nuevos: dict | None = None) -> None:
         util = None
         (d / "visor/superficie_util.geojson").unlink(missing_ok=True)
         if amb.tipo == "poligono":
-            util, libre = afe.superficie_util(amb.geom, zonas_afectan)
+            util, libre = afe.superficie_util(amb.geom, zonas_afectan, p.get("retranqueo_m") or 0.0)
+            util["pendientes"] = afe.criterios_pendientes(ccaa)
             if not libre.is_empty:
                 _guardar_geojson(d / "visor/superficie_util.geojson", libre, amb.crs, {"tipo": "superficie_util"})
                 visor["vector"]["superficie_util"] = "visor/superficie_util.geojson"

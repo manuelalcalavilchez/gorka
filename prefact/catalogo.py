@@ -179,6 +179,17 @@ def catalogo() -> Catalogo:
     return cargar()
 
 
+@lru_cache(maxsize=1)
+def implantacion() -> dict:
+    """Criterios de config/implantacion.yaml. Sin el fichero, la superficie útil usa el semáforo."""
+    ruta = settings.CONFIG_DIR / "implantacion.yaml"
+    if not ruta.exists():
+        return {"capas": {}, "sin_capa": []}
+    with open(ruta, encoding="utf-8") as f:
+        datos = yaml.safe_load(f)
+    return {"capas": datos.get("capas") or {}, "sin_capa": datos.get("sin_capa") or []}
+
+
 def estado_catalogo() -> list[dict]:
     """Resumen de qué capas están instaladas (para la página de inicio)."""
     cat = catalogo()
