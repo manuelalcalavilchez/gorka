@@ -52,4 +52,4 @@ DATOS_REMOTOS = os.environ.get("DATOS_REMOTOS", "1") == "1"
 
 MARCA = "Tecnología Alcalá"
 MARCA_WEB = "tecnologiaalcala.com"
-PRODUCTO = "Prefactibilidad de movimiento de tierras"
+PRODUCTO = "Estudios de prefactibilidad y MDT"

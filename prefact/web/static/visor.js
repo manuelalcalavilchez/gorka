@@ -388,7 +388,7 @@ function pintarTramitacion(r) {
 async function pintar(r) {
   datos = r;
   $("titulo").innerHTML = `${esc(r.nombre)}<small id="subtitulo">${esc(r.modo_nombre)} · versión ${r.version} · ${new Date(r.fecha).toLocaleString("es-ES")}</small>`;
-  document.title = `${r.nombre} · Prefactibilidad`;
+  document.title = `${r.nombre} · Estudios de prefactibilidad y MDT`;
   pintarResumen(r); pintarTerreno(r); pintarObra(r); pintarAfecciones(r); pintarTramitacion(r);
   await pintarMapa(r);
   ["pdf", "xlsx", "zip"].forEach((t) => { $(`d-${t}`).disabled = false; });
