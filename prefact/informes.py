@@ -270,7 +270,7 @@ def pdf(r: dict, ruta: Path, planos: dict) -> None:
     celda = ParagraphStyle("cel", parent=cuerpo, fontSize=7.8, leading=9.6)
 
     doc = SimpleDocTemplate(str(ruta), pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm,
-                            topMargin=16 * mm, bottomMargin=20 * mm, title=f"Prefactibilidad — {r['nombre']}",
+                            topMargin=16 * mm, bottomMargin=20 * mm, title=f"{settings.PRODUCTO} — {r['nombre']}",
                             author=f"{settings.MARCA} ({settings.MARCA_WEB})")
     s = []
     g, a, st = r["global"], r["ambito"], r["terreno"].get("estadisticas") or {}
@@ -279,7 +279,7 @@ def pdf(r: dict, ruta: Path, planos: dict) -> None:
     s.append(Paragraph(f"<font color='#0F7B6C'><b>{settings.MARCA.upper()}</b></font>"
                        f"<font size=8 color='#555'>  ·  {settings.MARCA_WEB}</font>", cuerpo))
     s.append(Spacer(1, 4))
-    s.append(Paragraph("ESTUDIO DE PREFACTIBILIDAD DE MOVIMIENTO DE TIERRAS", h1))
+    s.append(Paragraph(settings.PRODUCTO.upper(), h1))
     s.append(Paragraph(f"<b>{r['nombre']}</b> — {r['modo_nombre']}", cuerpo))
     s.append(Paragraph(f"Fecha: {datetime.fromisoformat(r['fecha']).strftime('%d/%m/%Y %H:%M')} · "
                        f"Referencia: {r['id'][:8].upper()}-v{r['version']}", peq))
