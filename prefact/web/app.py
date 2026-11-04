@@ -38,7 +38,16 @@ async def _ciclo(_app):
 app = FastAPI(title=f"{settings.PRODUCTO} — {settings.MARCA}", docs_url="/api/docs", redoc_url=None,
               lifespan=_ciclo)
 (ESTATICOS / "vendor").mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory=ESTATICOS), name="static")
+class EstaticosRevalidados(StaticFiles):
+    """Sin esto, navegadores y Cloudflare guardan 4 h los JS y CSS tras un despliegue."""
+
+    async def get_response(self, path, scope):
+        r = await super().get_response(path, scope)
+        r.headers["Cache-Control"] = "no-cache"
+        return r
+
+
+app.mount("/static", EstaticosRevalidados(directory=ESTATICOS), name="static")
 _pool = ThreadPoolExecutor(max_workers=settings.MAX_TRABAJOS, thread_name_prefix="estudio")
 _bloqueos: dict[str, threading.Lock] = {}
 

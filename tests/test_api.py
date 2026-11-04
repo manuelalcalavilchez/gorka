@@ -51,6 +51,10 @@ def test_flujo_api(ambitos):
     assert xl.status_code == 200 and xl.content[:2] == b"PK"
 
 
+def test_estaticos_se_revalidan():
+    assert cliente.get("/static/comun.js").headers["cache-control"] == "no-cache"
+
+
 def test_rechazos():
     r = cliente.post("/api/estudios", files={"fichero": ("a.exe", b"x")}, data={"modo": "explanacion"})
     assert r.status_code == 400
