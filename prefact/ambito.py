@@ -147,6 +147,8 @@ def leer_ambito(ruta: str | Path, modo: str) -> Ambito:
     modo == "vial" exige un eje (línea); el resto, un polígono.
     """
     ruta = Path(ruta)
+    if ruta.suffix.lower() == ".shp" and not ruta.with_suffix(".shx").exists():
+        raise AmbitoError("Un shapefile son varios ficheros: súbelo comprimido en un ZIP con el .shp, .shx, .dbf y .prj.")
     if ruta.suffix.lower() not in EXTENSIONES:
         raise AmbitoError(f"Formato no admitido ({ruta.suffix}). Usa KML, KMZ, GeoJSON, GPKG, SHP en ZIP, GML o DXF.")
     gdf = _leer_vectorial(ruta)

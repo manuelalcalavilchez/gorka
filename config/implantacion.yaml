@@ -6,6 +6,8 @@
 #   sobre_zona: la distancia se suma a la primera zona de la capa (p. ej. la anchura legal de la vía pecuaria).
 # sin_capa: criterios sin capa instalada. No se restan: el informe los lista como no comprobados.
 #   por_ccaa: valor por comunidad (códigos IGN). solo_ccaa: no se muestra en el resto de comunidades.
+# remotas: criterios que se comprueban por API en cada estudio (prefact/remotas.py). `criterio` enlaza con
+#   sin_capa: si la API responde se restan y salen de la lista; si falla, siguen como no comprobados.
 
 version: 1
 
@@ -20,6 +22,13 @@ capas:
   ferrocarril: {distancia: 50, etiqueta: "Ferrocarril: 50 m"}
   lineas_electricas: {distancia: 15, etiqueta: "Línea eléctrica: mínimo 15 m (puede ser más según tensión y vano)"}
   conducciones: {distancia: 10, etiqueta: "Gasoducto u oleoducto: 10 m"}
+
+remotas:
+  autovia: {criterio: "Autovías y autopistas", distancia: 50, etiqueta: "50 m desde el eje, si la normativa no dice lo contrario"}
+  carretera: {criterio: "Carreteras", distancia: 25, etiqueta: "25 m desde el eje, si la normativa no dice lo contrario"}
+  camino: {criterio: "Caminos", distancia: 10, etiqueta: "10 m desde el eje, si la normativa no dice lo contrario"}
+  construcciones: {criterio: "Construcciones", distancia: 10, etiqueta: "10 m desde cualquier edificio del Catastro"}
+  viviendas: {criterio: "Viviendas aisladas", distancia: 200, etiqueta: "200 m desde edificios con vivienda, si la normativa no dice lo contrario"}
 
 sin_capa:
   - {criterio: "Núcleos de población", por_ccaa: {"01": "1,5 km", "07": "1 km", "08": "1,5 km", "11": "2 km"}}

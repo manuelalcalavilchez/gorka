@@ -175,7 +175,7 @@ def perfil(id_: str, coords: str):
 @app.get("/api/estudios/{id_}/fichero/{ruta:path}")
 def fichero(id_: str, ruta: str):
     d = _carpeta(id_)
-    permitido = ruta.startswith(("visor/", "capas/")) or ruta == "ambito.geojson"
+    permitido = ruta.startswith(("visor/", "capas/", "remotas/")) or ruta == "ambito.geojson"
     p = (d / ruta).resolve()
     if not permitido or not str(p).startswith(str(d.resolve())) or not p.is_file():
         raise HTTPException(404, "Fichero no encontrado.")

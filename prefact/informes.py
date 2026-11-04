@@ -50,6 +50,7 @@ AZUL = colors.HexColor("#1F2A44")
 ACENTO = colors.HexColor("#0F7B6C")
 SEM_COLOR = {"rojo": colors.HexColor("#C62828"), "ambar": colors.HexColor("#EF8F00"),
              "verde": colors.HexColor("#2E7D32"), "info": colors.HexColor("#1E88E5"), "gris": colors.HexColor("#9E9E9E")}
+MAX_PARCELAS_PDF = 40
 SEM_TEXTO = {"rojo": "Excluyente", "ambar": "Condicionante", "verde": "Sin afección", "info": "Informativo",
              "gris": "Sin datos"}
 ESTADO_TEXTO = {"afecta": "Afecta", "sin_afeccion": "Sin afección", "no_instalada": "Capa no instalada",
@@ -113,6 +114,13 @@ def excel(r: dict, ruta: Path) -> None:
     if u and u["detalle"]:
         hoja("Superficie útil", [(z["capa"], z["zona"], z["area_m2"], z["pct"]) for z in u["detalle"]],
              ["Capa", "Criterio que resta", "Superficie en el ámbito (m²)", "% del ámbito"])
+    if u and u.get("parcelas"):
+        hoja("Parcelas catastrales", [(c["ref"], c["area_m2"], c["en_ambito_m2"], c["pct_parcela"]) for c in u["parcelas"]],
+             ["Referencia catastral", "Superficie catastral (m²)", "En el ámbito (m²)", "% de la parcela en el ámbito"])
+    if u and u.get("fuentes"):
+        hoja("Datos por API", [(c["nombre"], c["fuente"], c["estado"], c["elementos"], c["fecha"], c["mensaje"])
+                               for c in u["fuentes"]],
+             ["Datos", "Fuente", "Estado", "Elementos", "Fecha de consulta", "Detalle"])
     if u and u.get("pendientes"):
         hoja("Criterios sin comprobar", [(c["criterio"], c["valor"]) for c in u["pendientes"]],
              ["Criterio sin capa disponible", "Distancia"])
@@ -421,6 +429,22 @@ def pdf(r: dict, ruta: Path, planos: dict) -> None:
             datos += [[c["criterio"], Paragraph(c["valor"], celda)] for c in u["pendientes"]]
             s.append(_tabla(datos, [84 * mm, 90 * mm]))
             s.append(Paragraph("Estos criterios no se han restado: la superficie útil real puede ser menor.", peq))
+        if u.get("fuentes"):
+            s.append(Spacer(1, 4))
+            datos = [["Datos consultados por API", "Fuente", "Resultado"]]
+            for c in u["fuentes"]:
+                res = f"{_n(c['elementos'])} elementos, {c['fecha']}" if c["estado"] == "ok" else c["mensaje"]
+                datos.append([c["nombre"], Paragraph(c["fuente"], celda), Paragraph(res, celda)])
+            s.append(_tabla(datos, [44 * mm, 74 * mm, 56 * mm]))
+        if u.get("parcelas"):
+            s.append(Spacer(1, 4))
+            lista = u["parcelas"]
+            datos = [[f"Parcelas catastrales en el ámbito ({len(lista)})", "Superficie catastral", "En el ámbito"]]
+            datos += [[c["ref"], f"{_n(c['area_m2'])} m²", f"{_n(c['en_ambito_m2'])} m² ({_n(c['pct_parcela'], 1)} %)"]
+                      for c in lista[:MAX_PARCELAS_PDF]]
+            s.append(_tabla(datos, [84 * mm, 40 * mm, 50 * mm]))
+            if len(lista) > MAX_PARCELAS_PDF:
+                s.append(Paragraph(f"Se muestran {MAX_PARCELAS_PDF}. La lista completa está en el Excel.", peq))
         if "superficie_util" in planos:
             s.append(Spacer(1, 6))
             s.append(KeepTogether([_img(planos["superficie_util"])]))
@@ -505,6 +529,8 @@ def generar(id_: str) -> dict[str, Path]:
             z.write(d / "visor/ocupacion.geojson", "geojson/ocupacion.geojson")
         if (d / "visor/superficie_util.geojson").exists():
             z.write(d / "visor/superficie_util.geojson", "geojson/superficie_util.geojson")
+        for f in sorted((d / "remotas").glob("*.geojson")):
+            z.write(f, f"geojson/api/{f.name}")
         for f in sorted((d / "capas").glob("*.geojson")):
             z.write(f, f"geojson/afecciones/{f.name}")
         z.writestr("resultado.json", json.dumps(r, ensure_ascii=False, indent=1))

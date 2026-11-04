@@ -100,6 +100,12 @@ async function pintarMapa(r) {
     anadir(capa, `<span class="punto" style="background:${(SEM[af.semaforo] || SEM.gris).color}"></span> ${esc(af.nombre)}`,
       af.estado === "afecta");
   }
+  const remotas = { viales: ["Viales (IGN)", "#FF7043"], edificios: ["Edificios (Catastro)", "#C62828"], parcelas: ["Parcelas (Catastro)", "#FFFFFF"] };
+  for (const [k, [nombre, color]] of Object.entries(remotas)) {
+    const url = (v.vector || {})[`remota:${k}`];
+    const gj = url ? await geo(url) : null;
+    if (gj) anadir(L.geoJSON(gj, { style: { color, weight: 1.2, fillOpacity: k === "edificios" ? .5 : 0 } }), nombre, false);
+  }
   if (v.vector && v.vector.superficie_util) {
     const gj = await geo(v.vector.superficie_util);
     if (gj) anadir(L.geoJSON(gj, { style: { color: "#2E7D32", weight: 1.5, fillColor: "#43A047", fillOpacity: .35 } }), "Superficie útil");
@@ -339,6 +345,8 @@ function pintarAfecciones(r) {
       [`Mayor recinto (${nf(u.recintos)} en total)`, `${nf(u.mayor_recinto_m2 / 10000, 2)} ha`],
     ]);
     h += `<p class="nota">Calculada con criterios generales de implantación sobre las capas disponibles, salvo que la normativa aplicable indique otra cosa.</p>`;
+    if ((u.parcelas || []).length) h += `<p class="nota">Parcelas catastrales en el ámbito: ${nf(u.parcelas.length)}. Lista completa en el Excel.</p>`;
+    (u.fuentes || []).filter((c) => c.estado !== "ok").forEach((c) => { h += `<p class="nota">${esc(c.nombre)}: ${esc(c.mensaje)}</p>`; });
     if ((u.pendientes || []).length) h += `<div class="aviso">Sin comprobar, no restado (la superficie real puede ser menor): ${u.pendientes.map((c) => `${esc(c.criterio)} (${esc(c.valor)})`).join("; ")}.</div>`;
   }
   for (const [tema, lista] of Object.entries(temas)) {

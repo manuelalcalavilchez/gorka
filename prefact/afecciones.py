@@ -221,10 +221,12 @@ def superficie_util(ambito_poligono, zonas: list[dict], retranqueo: float = 0.0)
             "detalle": detalle}, libre
 
 
-def criterios_pendientes(ccaa: list[str]) -> list[dict]:
-    """Criterios de implantación sin capa instalada que aplican en estas comunidades."""
+def criterios_pendientes(ccaa: list[str], comprobados=()) -> list[dict]:
+    """Criterios de implantación sin comprobar que aplican en estas comunidades."""
     out = []
     for c in implantacion()["sin_capa"]:
+        if c["criterio"] in comprobados:
+            continue
         por = c.get("por_ccaa")
         if not por:
             out.append({"criterio": c["criterio"], "valor": c["valor"]})

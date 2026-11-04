@@ -15,6 +15,7 @@ GEODATOS = _TMP / "geodatos"
 os.environ["GEODATOS_DIR"] = str(GEODATOS)
 os.environ["ESTUDIOS_DIR"] = str(_TMP / "estudios")
 os.environ["PLANOS_CON_FONDO"] = "0"
+os.environ["DATOS_REMOTOS"] = "0"
 
 import generar_datos_prueba  # noqa: E402
 

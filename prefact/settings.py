@@ -47,6 +47,9 @@ WMS_IGN_BASE_CAPA = os.environ.get("WMS_IGN_BASE_CAPA", "IGNBaseTodo")
 # Descargar fondo PNOA para los planos del PDF (desactivar sin conexión)
 PLANOS_CON_FONDO = os.environ.get("PLANOS_CON_FONDO", "1") == "1"
 
+# Consultar viales, edificios y parcelas por API en cada estudio (desactivar sin conexión)
+DATOS_REMOTOS = os.environ.get("DATOS_REMOTOS", "1") == "1"
+
 MARCA = "Tecnología Alcalá"
 MARCA_WEB = "tecnologiaalcala.com"
 PRODUCTO = "Prefactibilidad de movimiento de tierras"

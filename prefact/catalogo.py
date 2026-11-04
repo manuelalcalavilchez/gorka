@@ -184,10 +184,11 @@ def implantacion() -> dict:
     """Criterios de config/implantacion.yaml. Sin el fichero, la superficie útil usa el semáforo."""
     ruta = settings.CONFIG_DIR / "implantacion.yaml"
     if not ruta.exists():
-        return {"capas": {}, "sin_capa": []}
+        return {"capas": {}, "sin_capa": [], "remotas": {}}
     with open(ruta, encoding="utf-8") as f:
         datos = yaml.safe_load(f)
-    return {"capas": datos.get("capas") or {}, "sin_capa": datos.get("sin_capa") or []}
+    return {"capas": datos.get("capas") or {}, "sin_capa": datos.get("sin_capa") or [],
+            "remotas": datos.get("remotas") or {}}
 
 
 def estado_catalogo() -> list[dict]:

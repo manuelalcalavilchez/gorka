@@ -23,6 +23,13 @@ def _plano(z0=100.0, pendiente=0.0, n=200, res=1.0, ambito_lado=100):
                    fuente={"nombre": "sintético"}, fiable=True, mascara=m)
 
 
+def test_shp_suelto_da_un_mensaje_claro(tmp_path):
+    f = tmp_path / "a.shp"
+    f.write_bytes(b"x")
+    with pytest.raises(ambito.AmbitoError, match="ZIP"):
+        ambito.leer_ambito(f, "explanacion")
+
+
 def test_superficie_util_resta_afecciones():
     parcela = box(0, 0, 100, 100)
     zonas = [{"capa": "A", "zona": "a", "geom": box(0, 0, 10, 100)},

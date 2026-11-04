@@ -18,7 +18,7 @@ from shapely.geometry import LineString, mapping, shape
 from shapely.ops import unary_union
 
 from . import afecciones as afe
-from . import render, settings, terreno, territorio, tramitacion, vial, volumenes
+from . import remotas, render, settings, terreno, territorio, tramitacion, vial, volumenes
 from .ambito import AmbitoError, leer_ambito
 
 log = logging.getLogger(__name__)
@@ -216,8 +216,13 @@ def ejecutar(id_: str, params_nuevos: dict | None = None) -> None:
         util = None
         (d / "visor/superficie_util.geojson").unlink(missing_ok=True)
         if amb.tipo == "poligono":
-            util, libre = afe.superficie_util(amb.geom, zonas_afectan, p.get("retranqueo_m") or 0.0)
-            util["pendientes"] = afe.criterios_pendientes(ccaa)
+            rem = remotas.obtener(amb.geom, amb.crs, ccaa, d / "remotas", lambda m, f: prog(m, 0.90 + 0.03 * f))
+            avisos += rem["avisos"]
+            visor["vector"].update({f"remota:{k}": v for k, v in rem["visor"].items()})
+            util, libre = afe.superficie_util(amb.geom, zonas_afectan + rem["zonas"], p.get("retranqueo_m") or 0.0)
+            util["pendientes"] = afe.criterios_pendientes(ccaa, rem["comprobados"])
+            util["fuentes"] = rem["fuentes"]
+            util["parcelas"] = rem["parcelas"]
             if not libre.is_empty:
                 _guardar_geojson(d / "visor/superficie_util.geojson", libre, amb.crs, {"tipo": "superficie_util"})
                 visor["vector"]["superficie_util"] = "visor/superficie_util.geojson"
