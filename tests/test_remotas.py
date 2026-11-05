@@ -223,6 +223,28 @@ def test_mdt_local_bueno_no_consulta_el_servicio(activar, monkeypatch):
     assert terreno._elegir_fuente((0, 0, 10, 10), "EPSG:25830")[0] is f
 
 
+def test_estado_servicios_detecta_caidas_y_guarda_el_resultado(activar, monkeypatch):
+    llamadas = []
+
+    def falso(url, params, *a):
+        llamadas.append(url)
+        if "wfsBU" in url:
+            raise remotas.RemotoError("caído")
+        if "wfsCP" in url:
+            return Respuesta(b"<?xml version='1.0'?><ExceptionReport/>")
+        if url == remotas.URL_MDT:
+            return Respuesta(b"--wcs ncols 20")
+        return Respuesta(datos={"features": []})
+
+    monkeypatch.setattr(remotas, "_get", falso)
+    monkeypatch.setitem(remotas._prueba, "hora", None)
+    filas = {s["id"]: s["disponible"] for s in remotas.estado_servicios()}
+    assert filas == {"viales": True, "edificios": False, "parcelas": False, "mdt05_ign": True}
+    n = len(llamadas)
+    remotas.estado_servicios()
+    assert len(llamadas) == n
+
+
 def test_desactivado_deja_todo_sin_comprobar(tmp_path):
     r = remotas.obtener(box(0, 0, 10, 10), "EPSG:25830", ["01"], tmp_path / "x")
     assert not r["comprobados"] and not r["fuentes"]

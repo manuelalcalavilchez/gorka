@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Estudios de prefactibilidad y MDT · Tecnología Alcalá</title>
 <link rel="icon" href="/favicon.ico" type="image/svg+xml">
-<link rel="stylesheet" href="/static/styles.css?v=2">
+<link rel="stylesheet" href="/static/styles.css?v=3">
 </head>
 <body>
 <header class="cabecera">
@@ -41,9 +41,12 @@
   </form>
 
   <section class="tarjeta">
-    <h2>Capas disponibles en el servidor</h2>
+    <h2>Capas y servicios</h2>
+    <p class="nota grupo-capas"><b>Por API</b> · se consultan en cada estudio</p>
+    <div class="capas-estado" id="servicios">Comprobando…</div>
+    <p class="nota grupo-capas"><b>En el servidor</b> · ficheros instalados</p>
     <div class="capas-estado" id="capas">Cargando…</div>
-    <p class="nota" style="margin-top:12px">Las capas no instaladas aparecerán en el informe como «sin datos». Ningún resultado sustituye las consultas a los organismos competentes.</p>
+    <p class="nota" style="margin-top:12px">Las capas no instaladas aparecerán en el informe como «sin datos». Si una API no responde, lo que depende de ella queda «sin comprobar» y el MDT pasa al de 1 km. Ningún resultado sustituye las consultas a los organismos competentes.</p>
   </section>
 </main>
 
@@ -108,8 +111,15 @@ document.getElementById("form").onsubmit = async (ev) => {
     const capas = await api("/api/capas");
     document.getElementById("capas").innerHTML = capas.map((c) =>
       `<div><span class="punto" style="background:${c.instalada ? "#2E7D32" : "#C9CED6"}"></span>
-       <span>${esc(c.nombre)} <span class="nota">· ${esc(c.tema)}${c.instalada ? "" : " · no instalada"}</span></span></div>`).join("");
+       <span>${esc(c.nombre)} <span class="nota">· ${esc(c.tema)}${c.instalada ? "" : " · no instalada"}${!c.instalada && c.alternativa ? ` · se usa ${esc(c.alternativa)} por API` : ""}</span></span></div>`).join("");
   } catch (e) { document.getElementById("capas").textContent = e.message; }
+  try {
+    const servicios = await api("/api/servicios");
+    document.getElementById("servicios").innerHTML = servicios.map((s) =>
+      `<div><span class="punto" style="background:${s.disponible ? "#2E7D32" : "#C62828"}"></span>
+       <span>${esc(s.nombre)} <span class="nota">· ${esc(s.fuente)} · ${s.disponible ? "disponible" : "no responde"} · ${esc(s.uso)} · ${esc(s.cobertura)}</span></span></div>`).join("")
+      || "Las consultas por API están desactivadas.";
+  } catch (e) { document.getElementById("servicios").textContent = e.message; }
 })();
 </script>
 </body>

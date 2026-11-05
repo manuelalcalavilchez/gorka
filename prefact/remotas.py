@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import threading
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 
 URL_VIALES = "https://api-features.idee.es/collections/roadlink/items"
 URL_CATASTRO = "https://ovc.catastro.meh.es/INSPIRE/"
+URL_MDT = "https://servicios.idee.es/wcs-inspire/mdt"
 FUENTE_VIALES = "IGN — Redes de transporte (API Features)"
 FUENTE_CATASTRO = "Dirección General del Catastro — INSPIRE"
 TIMEOUT_S = 60
@@ -64,6 +66,64 @@ def _get(url: str, params: dict | None, timeout: float = TIMEOUT_S, reintentos: 
                 raise RemotoError(f"El servicio no responde ({e.__class__.__name__}).") from e
             time.sleep(2 * (intento + 1))
     raise RemotoError("El servicio no responde.")
+
+
+# ------------------------------------------------------------------ disponibilidad de los servicios
+CAJA_PRUEBA = (679300, 4165400, 679400, 4165500)  # 100 m de lado: la respuesta es mínima
+TIMEOUT_PRUEBA_S = 8
+VIGENCIA_PRUEBA_S = 300  # la página es pública: no se golpea a los servicios en cada visita
+
+
+def _wfs_catastro(tipo: str) -> dict:
+    return {"service": "WFS", "version": "2.0.0", "request": "GetFeature", "typenames": tipo, "srsName": "EPSG::25830",
+            "bbox": ",".join(map(str, CAJA_PRUEBA))}
+
+
+def _sin_excepcion(r) -> bool:
+    return b"ExceptionReport" not in r.content[:600]
+
+
+x0, y0, x1, y1 = CAJA_PRUEBA
+SERVICIOS = [
+    {"id": "viales", "nombre": "Viales", "uso": "Autovías, carreteras y caminos", "fuente": "IGN", "cobertura": "Toda España",
+     "url": URL_VIALES, "params": {"bbox": "-0.967,37.618,-0.966,37.619", "limit": 1, "f": "json"},
+     "valida": lambda r: isinstance(r.json().get("features"), list)},
+    {"id": "edificios", "nombre": "Edificios", "uso": "Construcciones y viviendas", "fuente": "Catastro",
+     "cobertura": "Sin Navarra, País Vasco ni Canarias", "url": URL_CATASTRO + "wfsBU.aspx",
+     "params": _wfs_catastro("BU.BUILDING"), "valida": _sin_excepcion},
+    {"id": "parcelas", "nombre": "Parcelas catastrales", "uso": "Parcelas dentro del ámbito", "fuente": "Catastro",
+     "cobertura": "Sin Navarra, País Vasco ni Canarias", "url": URL_CATASTRO + "wfsCP.aspx",
+     "params": _wfs_catastro("CP.CADASTRALPARCEL"), "valida": _sin_excepcion},
+    {"id": "mdt05_ign", "nombre": "MDT05 (paso 5 m)", "uso": "Pendientes y volúmenes", "fuente": "IGN", "cobertura": "Toda España",
+     "url": URL_MDT, "params": [("service", "WCS"), ("version", "2.0.1"), ("request", "GetCoverage"),
+                                ("coverageid", "Elevacion25830_5"), ("format", "application/asc"),
+                                ("subset", f"x({x0 + 2.5},{x1 + 2.5})"), ("subset", f"y({y0 + 2.5},{y1 + 2.5})")],
+     "valida": lambda r: b"ncols" in r.content},
+]
+_prueba = {"hora": None, "filas": []}
+_cerrojo_prueba = threading.Lock()
+
+
+def _probar(s: dict) -> dict:
+    inicio = time.monotonic()
+    try:
+        ok = bool(s["valida"](_get(s["url"], s["params"], TIMEOUT_PRUEBA_S, 1)))
+    except (RemotoError, ValueError):
+        ok = False
+    return {**{k: s[k] for k in ("id", "nombre", "uso", "fuente", "cobertura")}, "disponible": ok,
+            "ms": round((time.monotonic() - inicio) * 1000)}
+
+
+def estado_servicios() -> list[dict]:
+    """Prueba real de cada API, con una consulta mínima. Guarda el resultado unos minutos."""
+    if not settings.DATOS_REMOTOS:
+        return []
+    with _cerrojo_prueba:
+        if _prueba["hora"] is None or time.monotonic() - _prueba["hora"] > VIGENCIA_PRUEBA_S:
+            with ThreadPoolExecutor(len(SERVICIOS)) as pool:
+                _prueba["filas"] = list(pool.map(_probar, SERVICIOS))
+            _prueba["hora"] = time.monotonic()
+        return _prueba["filas"]
 
 
 # ------------------------------------------------------------------ viales (IGN)

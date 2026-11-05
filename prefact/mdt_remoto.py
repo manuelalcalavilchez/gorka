@@ -11,9 +11,8 @@ import numpy as np
 from affine import Affine
 from rasterio.warp import transform_bounds
 
-from .remotas import RemotoError, _get
+from .remotas import URL_MDT, RemotoError, _get
 
-URL = "https://servicios.idee.es/wcs-inspire/mdt"
 PASO_M = 5.0
 LADO_TESELA_M = 5000
 HILOS = 4
@@ -65,8 +64,8 @@ def descargar(bbox, crs: str) -> tuple[np.ndarray, Affine, str]:
 
     def pedir(t):
         x0, y0, x1, y1 = t
-        r = _get(URL, [("service", "WCS"), ("version", "2.0.1"), ("request", "GetCoverage"), ("coverageid", cobertura),
-                       ("format", "application/asc"), ("subset", f"x({x0},{x1})"), ("subset", f"y({y0},{y1})")])
+        r = _get(URL_MDT, [("service", "WCS"), ("version", "2.0.1"), ("request", "GetCoverage"), ("coverageid", cobertura),
+                           ("format", "application/asc"), ("subset", f"x({x0},{x1})"), ("subset", f"y({y0},{y1})")])
         return leer_asc(r.text)
 
     xs = np.append(np.arange(minx, maxx, LADO_TESELA_M), maxx)

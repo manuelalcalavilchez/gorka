@@ -197,14 +197,14 @@ def implantacion() -> dict:
 def estado_catalogo() -> list[dict]:
     """Resumen de qué capas están instaladas (para la página de inicio)."""
     cat = catalogo()
+    alternativas = {"carreteras": "Viales", "mdt05": "MDT05", "mdt25": "MDT05"} if settings.DATOS_REMOTOS else {}
     filas = [
-        {"id": c.id, "nombre": c.nombre, "tema": c.tema, "instalada": c.instalada,
+        {"id": c.id, "nombre": c.nombre, "tema": c.tema, "instalada": c.instalada, "alternativa": alternativas.get(c.id),
          "ficheros": [str(f.relative_to(settings.GEODATOS_DIR)) for f in c.ficheros_disponibles]}
         for c in cat.capas
     ]
     for m in cat.mdt:
         filas.append({"id": m.id, "nombre": m.nombre, "tema": "MDT", "instalada": bool(m.ficheros()),
+                      "alternativa": alternativas.get(m.id),
                       "ficheros": [str(p.relative_to(settings.GEODATOS_DIR)) for p in m.ficheros()[:5]]})
-    if settings.DATOS_REMOTOS:
-        filas.append({"id": MDT_IGN.id, "nombre": MDT_IGN.nombre, "tema": "MDT", "instalada": True, "ficheros": []})
     return filas

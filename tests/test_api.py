@@ -23,6 +23,7 @@ def test_paginas_y_config():
     c = cliente.get("/api/config").json()
     assert set(c["modos"]) == {"explanacion", "relleno", "extraccion", "vial"}
     assert any(x["instalada"] for x in cliente.get("/api/capas").json())
+    assert cliente.get("/api/servicios").json() == []  # los tests no llaman a las API
 
 
 def test_flujo_api(ambitos):

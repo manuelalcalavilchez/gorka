@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .. import estudio, informes, settings
+from .. import estudio, informes, remotas, settings
 from ..ambito import EXTENSIONES
 from ..catalogo import estado_catalogo
 from ..volumenes import DEFECTOS, MODOS, ParametrosError, normalizar_parametros
@@ -113,6 +113,11 @@ def config():
 @app.get("/api/capas")
 def capas():
     return estado_catalogo()
+
+
+@app.get("/api/servicios")
+def servicios():
+    return remotas.estado_servicios()
 
 
 @app.post("/api/estudios")
