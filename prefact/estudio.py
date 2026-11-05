@@ -205,9 +205,13 @@ def ejecutar(id_: str, params_nuevos: dict | None = None) -> None:
         prog("Cruzando con las capas de condicionantes", 0.55)
         (d / "capas").mkdir(exist_ok=True)
         zonas_afectan = []
+        externas = {}
+        if settings.DATOS_REMOTOS:
+            externas["carreteras"] = {"datos": remotas.carreteras(geom_afecciones, amb.crs, d / "remotas"),
+                                      "fuente": remotas.FUENTE_VIALES}
         res_af, geojsons = afe.evaluar(
             geom_afecciones, ccaa, amb.crs, eje=amb.geom if amb.tipo == "linea" else None,
-            progreso=lambda m, f: prog(m, 0.55 + 0.35 * f), zonas_afectan=zonas_afectan)
+            progreso=lambda m, f: prog(m, 0.55 + 0.35 * f), zonas_afectan=zonas_afectan, externas=externas)
         for cid, gj in geojsons.items():
             if gj["features"]:
                 _escribir_json(d / "capas" / f"{cid}.geojson", gj)

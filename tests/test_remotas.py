@@ -245,6 +245,48 @@ def test_estado_servicios_detecta_caidas_y_guarda_el_resultado(activar, monkeypa
     assert len(llamadas) == n
 
 
+def _capa_carreteras():
+    return next(c for c in catalogo.catalogo().capas if c.id == "carreteras")
+
+
+def _carretera(x):
+    import geopandas as gpd
+    from shapely.geometry import LineString
+    return gpd.GeoDataFrame({"clase": ["carretera"]}, geometry=[LineString([(x, 3900), (x, 4100)])], crs="EPSG:25830")
+
+
+def test_capa_carreteras_por_api_marca_zonas_y_no_resta_dos_veces():
+    ambito, zonas = box(0, 4000, 100, 4100), []
+    externa = {"datos": _carretera(50), "fuente": remotas.FUENTE_VIALES}
+    r, gj = afecciones.evaluar_capa(_capa_carreteras(), ambito, ["01"], "EPSG:25830", zonas_afectan=zonas, externa=externa)
+    assert r["estado"] == "afecta" and r["semaforo"] == "rojo" and r["fuente"] == remotas.FUENTE_VIALES
+    assert {z["etiqueta"] for z in r["zonas"] if z["afecta"]} and gj["features"] and not zonas
+
+
+def test_capa_carreteras_lejos_no_afecta():
+    r, _ = afecciones.evaluar_capa(_capa_carreteras(), box(0, 4000, 100, 4100), ["01"], "EPSG:25830",
+                                   externa={"datos": _carretera(400), "fuente": "IGN"})
+    assert r["estado"] == "sin_afeccion" and r["distancia_min_m"] == 300
+
+
+def test_capa_carreteras_con_api_caida_queda_sin_comprobar():
+    r, _ = afecciones.evaluar_capa(_capa_carreteras(), box(0, 0, 10, 10), ["01"], "EPSG:25830",
+                                   externa={"datos": None, "fuente": "IGN"})
+    assert r["estado"] == "error" and r["semaforo"] == "gris" and "sin comprobar" in r["avisos"][0]
+
+
+def test_carreteras_excluye_caminos_y_no_guarda_fallos(tmp_path, activar, monkeypatch):
+    datos = {"features": [_vial("freeway", "paved", -3.0), _vial(None, "unpaved", -3.001)], "links": []}
+    monkeypatch.setattr(remotas, "_get", lambda *a: Respuesta(datos=datos))
+    g = remotas.carreteras(box(500000, 4000000, 500100, 4000100), "EPSG:25830", tmp_path / "a")
+    assert list(g["clase"]) == ["autovia"]
+
+    def caido(*a):
+        raise remotas.RemotoError("caído")
+    monkeypatch.setattr(remotas, "_get", caido)
+    assert remotas.carreteras(box(0, 0, 10, 10), "EPSG:25830", tmp_path / "b") is None
+
+
 def test_desactivado_deja_todo_sin_comprobar(tmp_path):
     r = remotas.obtener(box(0, 0, 10, 10), "EPSG:25830", ["01"], tmp_path / "x")
     assert not r["comprobados"] and not r["fuentes"]

@@ -193,7 +193,7 @@ capas:
     cobertura: {todas: true}
     fuente: CNIG — Redes de Transporte
     fecha: pendiente
-    notas: Capa pendiente de descarga.
+    notas: Sin el fichero instalado se consulta por API al IGN; incluye autovías, carreteras y calles, no caminos.
 
   - id: lineas_electricas
     nombre: Líneas eléctricas

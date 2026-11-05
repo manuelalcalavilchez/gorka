@@ -85,7 +85,7 @@ def _sin_excepcion(r) -> bool:
 
 x0, y0, x1, y1 = CAJA_PRUEBA
 SERVICIOS = [
-    {"id": "viales", "nombre": "Viales", "uso": "Autovías, carreteras y caminos", "fuente": "IGN", "cobertura": "Toda España",
+    {"id": "viales", "nombre": "Carreteras y caminos", "uso": "Afecciones y superficie útil", "fuente": "IGN", "cobertura": "Toda España",
      "url": URL_VIALES, "params": {"bbox": "-0.967,37.618,-0.966,37.619", "limit": 1, "f": "json"},
      "valida": lambda r: isinstance(r.json().get("features"), list)},
     {"id": "edificios", "nombre": "Edificios", "uso": "Construcciones y viviendas", "fuente": "Catastro",
@@ -151,6 +151,22 @@ def viales(geom, crs: str, margen: float) -> gpd.GeoDataFrame:
         raise RemotoError("Demasiados viales en la zona para consultarlos por API.")
     filas = [{"clase": clase_vial(f["properties"]), "geometry": shape(f["geometry"])} for f in feats if f.get("geometry")]
     return _gdf(filas, "EPSG:4326").to_crs(crs)
+
+
+def _margen_viales() -> float:
+    cfg = implantacion().get("remotas", {})
+    return max((float(cfg[k]["distancia"]) for k in ("autovia", "carretera", "camino") if k in cfg), default=0.0) + 1
+
+
+def carreteras(geom, crs: str, carpeta: Path) -> gpd.GeoDataFrame | None:
+    """Autovías y carreteras para la capa Carreteras, sin caminos. None si el IGN falla: no equivale a «no hay»."""
+    carpeta.mkdir(exist_ok=True)
+    try:
+        g, _ = _con_cache(carpeta / "viales.geojson", crs, lambda: viales(geom, crs, _margen_viales()))
+    except RemotoError as e:
+        log.warning("Carreteras: %s", e)
+        return None
+    return g if g.empty else g[g["clase"] != "camino"]
 
 
 # ------------------------------------------------------------------ Catastro
@@ -387,9 +403,8 @@ def obtener(ambito, crs: str, ccaa: list[str], carpeta: Path, progreso=None) -> 
             out["zonas"].append(z)
         out["comprobados"].add(c["criterio"])
 
-    margen_vial = max((float(cfg[k]["distancia"]) for k in ("autovia", "carretera", "camino") if k in cfg), default=0.0)
     prog("Consultando viales (IGN)")
-    g = consultar("viales", "Viales", FUENTE_VIALES, lambda: viales(ambito, crs, margen_vial + 1))
+    g = consultar("viales", "Viales", FUENTE_VIALES, lambda: viales(ambito, crs, _margen_viales()))
     if g is not None:
         for clase in ("autovia", "carretera", "camino"):
             aplicar(g[g["clase"] == clase] if not g.empty else g, clase)

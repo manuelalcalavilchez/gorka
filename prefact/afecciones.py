@@ -91,23 +91,32 @@ def _geom_implantacion(capa: Capa, gdf: gpd.GeoDataFrame, cfg: dict):
 
 
 def evaluar_capa(capa: Capa, ambito_poligono, ccaa: list[str], crs_utm: str, eje=None,
-                 zonas_afectan: list[dict] | None = None) -> tuple[dict, dict]:
+                 zonas_afectan: list[dict] | None = None, externa: dict | None = None) -> tuple[dict, dict]:
     """Devuelve (resultado, geojson para el visor) de una capa.
 
     Si se pasa `zonas_afectan`, añade lo que esta capa resta de la superficie útil.
+    `externa` da los datos por API cuando el fichero no está instalado: {"datos": gdf o None, "fuente": texto}.
+    Esos datos ya restan por su criterio de implantación, así que aquí no vuelven a restar.
     """
     base = {"id": capa.id, "nombre": capa.nombre, "tema": capa.tema, "fuente": capa.fuente,
             "fecha": capa.fecha, "notas": capa.notas, "zonas": [], "elementos": [], "avisos": [],
             "distancia_min_m": None, "cobertura_parcial": capa.es_parcial(ccaa), "valores": []}
     vacio = {"type": "FeatureCollection", "features": []}
-    if not capa.instalada:
+    por_api = externa is not None and not capa.instalada
+    if por_api:
+        base["fuente"], base["fecha"] = externa["fuente"], "consulta por API"
+        if externa["datos"] is None:
+            base["avisos"] = ["El servicio no ha respondido: esta capa queda sin comprobar."]
+            return {**base, "estado": "error", "semaforo": "gris"}, vacio
+        zonas_afectan = None
+    elif not capa.instalada:
         return {**base, "estado": "no_instalada", "semaforo": "gris"}, vacio
     if ccaa and not capa.cubre(ccaa):
         return {**base, "estado": "sin_cobertura", "semaforo": "gris"}, vacio
 
     margen = capa.distancia_max + RADIO_BUSQUEDA_M
     busqueda = box(*ambito_poligono.buffer(margen).bounds)
-    gdf, avisos = _leer_capa(capa, busqueda, crs_utm)
+    gdf, avisos = (externa["datos"], []) if por_api else _leer_capa(capa, busqueda, crs_utm)
     base["avisos"] = avisos
     if gdf.empty:
         estado = "sin_afeccion"
@@ -240,7 +249,7 @@ def criterios_pendientes(ccaa: list[str], comprobados=()) -> list[dict]:
 
 
 def evaluar(ambito_poligono, ccaa: list[str], crs_utm: str, eje=None, progreso=None,
-            zonas_afectan: list[dict] | None = None) -> tuple[list[dict], dict]:
+            zonas_afectan: list[dict] | None = None, externas: dict | None = None) -> tuple[list[dict], dict]:
     cat = catalogo()
     resultados, geojsons = [], {}
     n = len(cat.capas)
@@ -248,7 +257,8 @@ def evaluar(ambito_poligono, ccaa: list[str], crs_utm: str, eje=None, progreso=N
         if progreso:
             progreso(f"Cruzando {capa.nombre}", i / max(n, 1))
         try:
-            r, gj = evaluar_capa(capa, ambito_poligono, ccaa, crs_utm, eje=eje, zonas_afectan=zonas_afectan)
+            r, gj = evaluar_capa(capa, ambito_poligono, ccaa, crs_utm, eje=eje, zonas_afectan=zonas_afectan,
+                                 externa=(externas or {}).get(capa.id))
         except Exception as e:  # noqa: BLE001
             log.exception("Error en capa %s", capa.id)
             r = {"id": capa.id, "nombre": capa.nombre, "tema": capa.tema, "estado": "error", "semaforo": "gris",
