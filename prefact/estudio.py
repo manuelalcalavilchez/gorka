@@ -146,7 +146,7 @@ def ejecutar(id_: str, params_nuevos: dict | None = None) -> None:
         try:
             if npz.exists() and modo != "vial":
                 t = terreno.Terreno.cargar(npz)
-            else:
+            if t is None or (not t.fiable and settings.DATOS_REMOTOS):  # un estudio antiguo gana el MDT de 5 m al recalcular
                 t = terreno.preparar(amb, margen_m=margen, geom_analisis=geom_mask)
                 t.guardar(npz)
         except terreno.TerrenoError as e:

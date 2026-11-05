@@ -1,6 +1,7 @@
 """Selección del MDT, malla de trabajo, pendientes y sombreado."""
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -14,8 +15,11 @@ from rasterio.warp import Resampling, reproject, transform_bounds
 from scipy import ndimage
 from shapely.geometry import box
 
-from . import settings
-from .catalogo import FuenteMDT, catalogo
+from . import mdt_remoto, settings
+from .catalogo import MDT_IGN, FuenteMDT, catalogo
+from .remotas import RemotoError
+
+log = logging.getLogger(__name__)
 
 CLASES_PENDIENTE = [(0, 3, "0–3 %"), (3, 10, "3–10 %"), (10, 20, "10–20 %"), (20, 30, "20–30 %"), (30, 1e9, "> 30 %")]
 
@@ -102,6 +106,25 @@ def seleccionar_mdt(bbox_utm, crs_utm: str):
                        f"{settings.GEODATOS_DIR / 'mdt'}.")
 
 
+def _elegir_fuente(bbox, crs: str):
+    """Devuelve (fuente, ficheros, descarga, avisos). Un MDT local de 5 m o mejor manda sobre el servicio del IGN."""
+    try:
+        fuente, ficheros = seleccionar_mdt(bbox, crs)
+    except TerrenoError:
+        if not settings.DATOS_REMOTOS:
+            raise
+        fuente, ficheros = None, []
+    if not settings.DATOS_REMOTOS or (fuente and fuente.resolucion_m <= MDT_IGN.resolucion_m):
+        return fuente, ficheros, None, []
+    try:
+        return MDT_IGN, [], mdt_remoto.descargar(bbox, crs), []
+    except RemotoError as e:
+        log.warning("MDT del IGN: %s", e)
+        if fuente is None:
+            raise TerrenoError(f"No se ha podido descargar el MDT del IGN: {e}") from e
+        return fuente, ficheros, None, [f"No se ha podido descargar el MDT de 5 m del IGN: {e} Se usa {fuente.nombre}."]
+
+
 def preparar(ambito, margen_m: float = 150.0, geom_analisis=None) -> Terreno:
     """Construye la malla de trabajo en el CRS del ámbito.
 
@@ -113,7 +136,7 @@ def preparar(ambito, margen_m: float = 150.0, geom_analisis=None) -> Terreno:
     if area_km2 > settings.MAX_AREA_TERRENO_KM2:
         raise TerrenoError(f"La zona de análisis ({area_km2:.0f} km²) supera el máximo de "
                            f"{settings.MAX_AREA_TERRENO_KM2:.0f} km².")
-    fuente, ficheros = seleccionar_mdt((minx, miny, maxx, maxy), ambito.crs)
+    fuente, ficheros, descarga, avisos = _elegir_fuente((minx, miny, maxx, maxy), ambito.crs)
     res = fuente.resolucion_m if fuente.resolucion_m <= 25 else 25.0
     celdas = (maxx - minx) * (maxy - miny) / (res * res)
     if celdas > settings.MAX_CELDAS:
@@ -131,11 +154,14 @@ def preparar(ambito, margen_m: float = 150.0, geom_analisis=None) -> Terreno:
                       resampling=Resampling.bilinear)
         ok = np.isfinite(tmp) & np.isnan(z)
         z[ok] = tmp[ok]
+    if descarga:
+        cotas, transformada, crs_mdt = descarga
+        reproject(source=cotas, destination=z, src_transform=transformada, src_crs=crs_mdt, src_nodata=np.nan,
+                  dst_transform=dst_t, dst_crs=ambito.crs, dst_nodata=np.nan, resampling=Resampling.bilinear)
     z[(z < -500) | (z > 5000)] = np.nan
     mascara = geometry_mask([geom], out_shape=(h, w), transform=dst_t, invert=True, all_touched=False)
     if mascara.sum() == 0:  # ámbito menor que una celda
         mascara = geometry_mask([geom], out_shape=(h, w), transform=dst_t, invert=True, all_touched=True)
-    avisos = []
     fiable = (not fuente.solo_contexto) and fuente.resolucion_m <= catalogo().mdt_resolucion_fiable_m
     if not fiable:
         avisos.append(f"MDT de baja resolución ({fuente.nombre}): pendientes y volúmenes NO son fiables; "

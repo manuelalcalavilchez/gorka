@@ -13,7 +13,7 @@ tramitación e informe en PDF y Excel. Los resultados se **revisan en un visor**
 |---|---|
 | Ámbito | KML, KMZ, GeoJSON, GPKG, SHP (ZIP), GML de Catastro o DXF (ETRS89 UTM). Detecta el huso UTM (25829/25830/25831, REGCAN95 en Canarias). |
 | Territorio | Comunidad autónoma y municipios a partir de las unidades administrativas del IGN. |
-| Terreno | MDT por prioridad (MDT02 › MDT05 › MDT25 › 1 km), pendientes (Horn), clases de pendiente, sombreado. Avisa si la resolución no es fiable para volúmenes. |
+| Terreno | MDT por prioridad (MDT02 › MDT05 local › MDT05 del IGN por WCS › MDT25 › 1 km), pendientes (Horn), clases de pendiente, sombreado. Avisa si la resolución no es fiable para volúmenes. |
 | Movimiento de tierras | **Explanación** (cota fija o compensada, plataforma inclinada, taludes), **Relleno** (cota final o volumen objetivo), **Extracción** (cota de fondo o profundidad, talud del hueco) y **Vial** (rasante con pendiente máxima, secciones, tramos y diagrama de masas). |
 | Condicionantes | Cruce con las capas de `config/capas.yaml`: DPH, servidumbre y policía de cauces, inundabilidad, Red Natura, ENP, montes públicos, vías pecuarias (anchura legal por tipo), ferrocarril, carreteras, líneas eléctricas… con **semáforo** por zona. Las afecciones se calculan sobre la **ocupación real con taludes**, no solo sobre el ámbito. |
 | Superficie útil | Superficie del ámbito tras el retranqueo a linderos y las distancias de `config/implantacion.yaml`, con recintos resultantes, capa en el visor, plano y detalle de lo que resta. Los criterios sin capa disponible no se restan y el informe los lista como no comprobados. |

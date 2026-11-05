@@ -1,7 +1,10 @@
+from types import SimpleNamespace
+
+import numpy as np
 import pytest
 from shapely.geometry import box
 
-from prefact import afecciones, remotas, settings
+from prefact import afecciones, catalogo, mdt_remoto, remotas, settings, terreno
 
 GML = "http://www.opengis.net/gml/3.2"
 
@@ -34,6 +37,10 @@ class Respuesta:
 
     def json(self):
         return self.datos
+
+    @property
+    def text(self):
+        return self.content.decode()
 
 
 def _vial(forma, firme, x):
@@ -145,6 +152,75 @@ def test_presupuesto_agotado_queda_sin_comprobar(tmp_path, activar, monkeypatch)
     monkeypatch.setattr(remotas, "PRESUPUESTO_CATASTRO_S", -1)
     r = remotas.obtener(box(0, 0, 100, 100), "EPSG:25830", ["01"], tmp_path)
     assert "Construcciones" not in r["comprobados"] and len(r["avisos"]) == 2
+
+
+def _asc(params):
+    assert ("format", "application/asc") in params
+    x0, x1 = (float(v) for v in params[-2][1][2:-1].split(","))
+    y0, y1 = (float(v) for v in params[-1][1][2:-1].split(","))
+    n, m = round((x1 - x0) / 5), round((y1 - y0) / 5)
+    filas = "\n".join(" ".join(f"{100 + (x0 + 5 * c) / 100000:.3f}" for c in range(n)) for _ in range(m))
+    return Respuesta(f"--wcs\nContent-Type: application/asc\n\nncols {n}\nnrows {m}\nxllcorner {x0}\nyllcorner {y0}\n"
+                     f"cellsize 5.0\nNODATA_value -9999\n{filas}\n--wcs--".encode())
+
+
+def test_leer_asc_conserva_decimales_y_nulos():
+    z, x0, y0 = mdt_remoto.leer_asc("--wcs\n\nncols 2\nnrows 2\nxllcorner 2.5\nyllcorner 7.5\ncellsize 5\n"
+                                    "NODATA_value -9999\n1.25 2.5\n-9999 4\n--wcs--")
+    assert (x0, y0) == (2.5, 7.5) and z[0, 0] == 1.25 and np.isnan(z[1, 0])
+
+
+def test_leer_asc_rechaza_respuestas_raras():
+    with pytest.raises(remotas.RemotoError):
+        mdt_remoto.leer_asc("<ExceptionReport/>")
+    with pytest.raises(remotas.RemotoError):
+        mdt_remoto.leer_asc("ncols 1\nnrows 1\nxllcorner 0\nyllcorner 0\ndx 4.9\ndy 5\n1")
+
+
+def test_descarga_une_teselas_sin_huecos(activar, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(mdt_remoto, "_get", lambda url, params: llamadas.append(params) or _asc(params))
+    monkeypatch.setattr(mdt_remoto, "LADO_TESELA_M", 1000)
+    z, t, crs = mdt_remoto.descargar((500000, 4000000, 502400, 4001200), "EPSG:25830")
+    assert crs == "EPSG:25830" and len(llamadas) == 6 and np.isfinite(z).all()
+    assert (t.c - 2.5) % 5 == 0 and (t.f - 2.5) % 5 == 0
+    esperado = 100 + (t.c + 5 * (z.shape[1] - 1)) / 100000
+    assert z[0, -1] == pytest.approx(esperado, abs=2e-3) and z[-1, -1] == z[0, -1]
+
+
+def _ambito():
+    return SimpleNamespace(geom=box(500000, 4000000, 500200, 4000200), crs="EPSG:25830")
+
+
+def _solo_contexto(monkeypatch):
+    f = catalogo.FuenteMDT("mdt1000", "MDT 1 km", "no-existe", 1000, "IGN", True)
+    monkeypatch.setattr(terreno, "seleccionar_mdt", lambda *a: (f, []))
+
+
+def test_preparar_prefiere_el_mdt_del_ign_al_de_contexto(activar, monkeypatch):
+    _solo_contexto(monkeypatch)
+    monkeypatch.setattr(mdt_remoto, "_get", lambda url, params: _asc(params))
+    t = terreno.preparar(_ambito(), margen_m=50)
+    assert t.fiable and t.fuente["id"] == "mdt05_ign" and t.res == 5 and not t.avisos
+    assert np.isfinite(t.z[t.mascara]).all() and np.nanmin(t.z) > 100
+
+
+def test_fallo_del_mdt_avisa_y_no_lo_da_por_fiable(activar, monkeypatch):
+    _solo_contexto(monkeypatch)
+
+    def caido(*a):
+        raise remotas.RemotoError("El servicio no responde.")
+    monkeypatch.setattr(mdt_remoto, "_get", caido)
+    t = terreno.preparar(_ambito(), margen_m=50)
+    assert not t.fiable and t.fuente["id"] == "mdt1000"
+    assert any("No se ha podido descargar" in a for a in t.avisos) and any("NO son fiables" in a for a in t.avisos)
+
+
+def test_mdt_local_bueno_no_consulta_el_servicio(activar, monkeypatch):
+    f = catalogo.FuenteMDT("mdt02", "MDT02", "x", 2, "CNIG")
+    monkeypatch.setattr(terreno, "seleccionar_mdt", lambda *a: (f, []))
+    monkeypatch.setattr(mdt_remoto, "_get", lambda *a: pytest.fail("no debe consultar el IGN"))
+    assert terreno._elegir_fuente((0, 0, 10, 10), "EPSG:25830")[0] is f
 
 
 def test_desactivado_deja_todo_sin_comprobar(tmp_path):

@@ -101,6 +101,9 @@ class FuenteMDT:
         return sorted(Path(p) for p in glob.glob(str(base / self.patron), recursive=True))
 
 
+MDT_IGN = FuenteMDT("mdt05_ign", "MDT05 del IGN (paso 5 m)", "", 5, "IGN — MDT05 (servicio WCS)")
+
+
 @dataclass
 class Catalogo:
     capas: list[Capa]
@@ -202,4 +205,6 @@ def estado_catalogo() -> list[dict]:
     for m in cat.mdt:
         filas.append({"id": m.id, "nombre": m.nombre, "tema": "MDT", "instalada": bool(m.ficheros()),
                       "ficheros": [str(p.relative_to(settings.GEODATOS_DIR)) for p in m.ficheros()[:5]]})
+    if settings.DATOS_REMOTOS:
+        filas.append({"id": MDT_IGN.id, "nombre": MDT_IGN.nombre, "tema": "MDT", "instalada": True, "ficheros": []})
     return filas
